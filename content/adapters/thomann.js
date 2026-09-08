@@ -24,15 +24,19 @@
     const h1 = document.querySelector('h1');
     if (!h1) return [];
     const title = h1.textContent.replace(/\s+/g, ' ').trim();
-    // Thomann renders the price several times (a hidden meta block, the visible details block,
-    // and recommendation boxes further down): take the first visible one outside product boxes.
-    const candidates = [...document.querySelectorAll('.details__price .fx-price-group__primary, .price-and-availability .fx-price-group__primary, .fx-price-group__primary')]
-      .filter((el) => !el.closest('.fx-product-box, .fx-product-list-entry, .js-product'));
-    const priceEl = candidates.find((el) => U.isVisible(el) && (!el.ownerDocument.defaultView || el.ownerDocument.defaultView.getComputedStyle(el).visibility !== 'hidden')) || candidates[0] || null;
+    // The visible price of the product page is `.price-wrapper .price` (the summary block);
+    // `.details__price` / `.price-and-availability` are hidden duplicates or recommendation boxes.
+    const wrapper = document.querySelector('.price-wrapper');
+    let priceEl = wrapper && wrapper.querySelector('.price');
+    if (!priceEl) {
+      const candidates = [...document.querySelectorAll('.details__price .fx-price-group__primary, .price-and-availability .fx-price-group__primary, .fx-price-group__primary')]
+        .filter((el) => !el.closest('.fx-product-box, .fx-product-list-entry, .js-product'));
+      priceEl = candidates.find((el) => U.isVisible(el) && (!el.ownerDocument.defaultView || el.ownerDocument.defaultView.getComputedStyle(el).visibility !== 'hidden')) || candidates[0] || null;
+    }
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null;
     const key = 'tho:' + location.pathname.replace(/\.htm.*$/, '');
-    // Marketplace pills go on their own line under the price block, right-aligned.
-    const block = priceEl ? (priceEl.closest('.details__price, .price-and-availability, .fx-price-group') || priceEl) : h1;
+    // Marketplace pills go on their own line right under the price, right-aligned.
+    const block = priceEl || h1;
     return [{ key, title, titleEl: h1, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: block, mountMode: 'below-right' }];
   }
 
@@ -43,7 +47,7 @@
     findProducts(root) {
       const entries = [...(root || document).querySelectorAll('.fx-product-list-entry')];
       if (entries.length) return entries.map(fromEntry).filter(Boolean);
-      if (/\.htm(\?|$)/.test(location.pathname) && document.querySelector('.price-and-availability, .details__price, .fx-price-group__primary')) return fromProductPage();
+      if (/\.htm(\?|$)/.test(location.pathname) && document.querySelector('.price-wrapper .price, .price-and-availability, .details__price, .fx-price-group__primary')) return fromProductPage();
       return [];
     }
   });

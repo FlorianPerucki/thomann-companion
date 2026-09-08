@@ -124,12 +124,14 @@ test('thomann adapter reads product-list entries and the product page, and targe
   assert.equal(products[0].currency, 'CHF');
   assert.equal(products[1].priceValue, null); // price filled later by Thomann's JS
 
-  const page = `<main><h1 class="font-sans">\n  Doepfer A-131\n</h1><div class="price-and-availability"><div class="fx-price-group"><span class="fx-typography-price-primary fx-price-group__primary">68 CHF</span></div></div>
-    <div class="price-and-availability"><span class="fx-price-group__primary">109 CHF</span></div></main>`;
+  const page = `<main><h1 class="font-sans">\n  Doepfer A-131\n</h1><div class="price-and-availability"><div class="fx-price-group"><span class="fx-typography-price-primary fx-price-group__primary">299 CHF</span></div></div>
+    <div class="fx-summary-label"><div class="price-wrapper"><meta itemprop="price" content="68"><div class="price fx-text fx-text--no-margin"> 68<span class="price__symbol">&nbsp;CHF</span> </div></div></div></main>`;
   const r2 = load(page, 'https://www.thomannmusic.ch/doepfer_a131.htm');
   assert.equal(r2.products.length, 1);
   assert.equal(r2.products[0].title, 'Doepfer A-131');
   assert.equal(r2.products[0].priceValue, 68);
+  assert.equal(r2.products[0].mount.className, 'price fx-text fx-text--no-margin');
+  assert.equal(r2.products[0].mountMode, 'below-right');
   assert.equal(r2.products[0].key, 'tho:/doepfer_a131');
 });
 
