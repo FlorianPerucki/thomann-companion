@@ -2,7 +2,9 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies'];
+const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies', 'reverseMatchMin', 'reverseTtlHours', 'lbcCategory', 'marketLang', 'allowMarketCookies'];
+const SOURCES = ['leboncoin', 'ricardo', 'anibis'];
+const SOURCE_ORIGIN = { leboncoin: 'https://www.leboncoin.fr/*', ricardo: 'https://www.ricardo.ch/*', anibis: 'https://www.anibis.ch/*' };
 let defaults = {};
 let knownDomains = [];
 
@@ -30,7 +32,9 @@ function fill(s) {
     const el = $(f);
     if (el.type === 'checkbox') el.checked = !!s[f]; else el.value = s[f];
   }
+  for (const src of SOURCES) $('src-' + src).checked = !s.sources || s.sources[src] !== false;
   refreshPermission();
+  refreshMarketPermissions();
 }
 
 function read() {
@@ -41,7 +45,22 @@ function read() {
     else if (el.type === 'number') s[f] = Number(el.value);
     else s[f] = el.value;
   }
+  s.sources = {};
+  for (const src of SOURCES) s.sources[src] = $('src-' + src).checked;
   return s;
+}
+
+async function refreshMarketPermissions() {
+  const { perms } = await browser.runtime.sendMessage({ type: 'marketPermissions' });
+  let missing = false;
+  for (const src of SOURCES) {
+    const ok = perms[src];
+    const el = $('perm-' + src);
+    el.textContent = ok ? '✓ access granted' : 'no access yet';
+    el.className = ok ? 'ok' : 'warn';
+    if (!ok && $('src-' + src).checked) missing = true;
+  }
+  $('grantMarkets').hidden = !missing;
 }
 
 async function refreshPermission() {
@@ -54,7 +73,7 @@ async function refreshPermission() {
 
 async function refreshStats() {
   const st = await browser.runtime.sendMessage({ type: 'cacheStats' });
-  $('stats').textContent = st.cacheEntries + ' cached lookups · ' + st.overrides + ' manual matches';
+  $('stats').textContent = st.cacheEntries + ' cached lookups · ' + st.overrides + ' manual matches · ' + (st.hidden || 0) + ' hidden listings';
 }
 
 async function load() {
@@ -85,6 +104,18 @@ $('grant').addEventListener('click', async () => {
   }
   refreshPermission();
 });
+
+$('grantMarkets').addEventListener('click', async () => {
+  const origins = SOURCES.filter((src) => $('src-' + src).checked).map((src) => SOURCE_ORIGIN[src]);
+  if (!origins.length) return;
+  try {
+    const ok = await browser.permissions.request({ origins });
+    status(ok ? 'Access granted.' : 'Access denied.', ok ? 'ok' : 'warn');
+  } catch (e) { status('Cannot request access: ' + e.message, 'warn'); }
+  refreshMarketPermissions();
+});
+for (const src of SOURCES) $('src-' + src).addEventListener('change', refreshMarketPermissions);
+$('clearHidden').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearHidden' }); status('Hidden listings cleared.', 'ok'); refreshStats(); });
 
 $('clearCache').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearCache' }); status('Cache cleared.', 'ok'); refreshStats(); });
 $('clearOverrides').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearOverrides' }); status('Manual matches cleared.', 'ok'); refreshStats(); });

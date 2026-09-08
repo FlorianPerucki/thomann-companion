@@ -1,4 +1,4 @@
-/* global browser, ThomannMatcher, ThomannClientLib */
+/* global browser, ThomannMatcher, ThomannClientLib, ThomannMarketplaces */
 'use strict';
 
 const DEFAULT_SETTINGS = {
@@ -12,7 +12,14 @@ const DEFAULT_SETTINGS = {
   eurChfRate: 0,        // 0 = no conversion / no "cheaper" hint across currencies
   allowCookies: false,
   matchMin: 0.6,
-  uncertainMin: 0.3
+  uncertainMin: 0.3,
+  // Reverse mode (Thomann pages -> second-hand listings)
+  sources: { leboncoin: true, ricardo: true, anibis: true },
+  reverseTtlHours: 2,
+  reverseMatchMin: 0.5,
+  lbcCategory: '30',      // leboncoin "Instruments de musique"; empty = all categories
+  marketLang: 'fr',       // ricardo / anibis language path
+  allowMarketCookies: false
 };
 
 const KNOWN_DOMAINS = ['www.thomannmusic.ch', 'www.thomann.fr', 'www.thomann.de'];
@@ -25,7 +32,9 @@ const enabledTabs = new Map(); // tabId -> { mode: 'page' | 'keep', origin? }
 // ---------- settings ----------
 async function getSettings() {
   const stored = await browser.storage.sync.get('settings');
-  return Object.assign({}, DEFAULT_SETTINGS, stored.settings || {});
+  const s = Object.assign({}, DEFAULT_SETTINGS, stored.settings || {});
+  s.sources = Object.assign({}, DEFAULT_SETTINGS.sources, (stored.settings && stored.settings.sources) || {});
+  return s;
 }
 
 // ---------- cache (storage.local) ----------
@@ -63,6 +72,26 @@ async function setOverride(query, articleId) {
 
 const client = new ThomannClientLib.ThomannClient({ fetch: (u, i) => fetch(u, i), cache: cacheStore });
 
+// One polite queue per marketplace (they run anti-bot systems): 1 at a time, >= 800 ms apart.
+const marketQueues = {};
+function marketQueue(id) {
+  if (!marketQueues[id]) marketQueues[id] = new ThomannClientLib.Queue({ concurrency: 1, spacingMs: 800 });
+  return marketQueues[id];
+}
+const marketInflight = new Map();
+
+const HIDDEN_KEY = 'hiddenListings';
+async function getHidden() {
+  const { [HIDDEN_KEY]: h = {} } = await browser.storage.local.get(HIDDEN_KEY);
+  return h;
+}
+async function setHidden(source, id, hidden) {
+  const h = await getHidden();
+  const k = source + ':' + id;
+  if (hidden) h[k] = Date.now(); else delete h[k];
+  await browser.storage.local.set({ [HIDDEN_KEY]: h });
+}
+
 // ---------- permissions ----------
 function originFor(domain) { return 'https://' + domain + '/*'; }
 async function hasHostPermission(domain) {
@@ -72,6 +101,93 @@ async function hasHostPermission(domain) {
 // ---------- lookup ----------
 async function lookup(msg) {
   const settings = await getSettings();
+  const source = msg.source || 'thomann';
+  if (source === 'thomann') return lookupThomann(msg, settings);
+  const provider = ThomannMarketplaces.PROVIDERS[source];
+  if (!provider) return { status: 'error', error: 'unknown source ' + source };
+  return lookupMarket(provider, msg, settings);
+}
+
+async function fetchMarketWithRetry(provider, query, settings) {
+  let delay = 1000;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await ThomannMarketplaces.fetchListings(provider, query, settings, (u, i) => fetch(u, i));
+    } catch (e) {
+      if (!e.retryable || attempt === 2) throw e;
+      await new Promise((r) => setTimeout(r, delay));
+      delay *= 2;
+    }
+  }
+  throw new Error('unreachable');
+}
+
+/** Cached, queued, de-duplicated search on one marketplace. Returns { listings, fromCache, ts } or { error }. */
+async function marketSearch(provider, query, settings, force) {
+  const key = 'm|' + provider.id + '|' + settings.marketLang + '|' + (settings.lbcCategory || '') + '|' + query.toLowerCase();
+  const ttl = settings.reverseTtlHours * 3600 * 1000;
+  if (!force && ttl > 0) {
+    const hit = await cacheStore.get(key);
+    if (hit && Date.now() - hit.ts < ttl) return { listings: hit.listings, fromCache: true, ts: hit.ts };
+  }
+  if (marketInflight.has(key)) return marketInflight.get(key);
+  const p = marketQueue(provider.id).push(() => fetchMarketWithRetry(provider, query, settings))
+    .then(async (listings) => {
+      if (ttl > 0) await cacheStore.set(key, { ts: Date.now(), listings });
+      return { listings, fromCache: false, ts: Date.now() };
+    })
+    .catch((e) => ({ error: String(e && e.message || e) }))
+    .finally(() => marketInflight.delete(key));
+  marketInflight.set(key, p);
+  return p;
+}
+
+async function lookupMarket(provider, msg, settings) {
+  const origin = provider.origin + '/*';
+  const queries = ThomannMatcher.marketQueries(msg.title, { baseOnly: provider.id === 'anibis' });
+  const searchUrl = provider.searchUrl(queries[0] || msg.title, settings);
+  if (!(await browser.permissions.contains({ origins: [origin] }).catch(() => false))) {
+    return { status: 'noPermission', source: provider.id, domain: provider.origin.replace(/^https?:\/\//, ''), searchUrl, matches: [], count: 0 };
+  }
+  const productQuery = ThomannMatcher.cleanQuery(msg.title);
+  if (!productQuery) return { status: 'none', source: provider.id, searchUrl, matches: [], count: 0 };
+
+  const hidden = await getHidden();
+  let all = [];
+  let fromCache = true, ts = Date.now(), lastError = null, query = queries[0];
+  const seen = new Set();
+  for (const q of queries) {
+    query = q;
+    const r = await marketSearch(provider, q, settings, !!msg.force);
+    if (r.error) { lastError = r.error; continue; }
+    fromCache = fromCache && r.fromCache; ts = Math.min(ts, r.ts || ts);
+    for (const l of r.listings) if (!seen.has(l.id)) { seen.add(l.id); all.push(l); }
+    const matches = ThomannMatcher.pickMatches(productQuery, all, { min: settings.reverseMatchMin });
+    if (matches.length) break; // a narrower query already found the product; don't widen
+  }
+  if (!all.length && lastError) return { status: 'error', source: provider.id, error: lastError, searchUrl, matches: [], count: 0 };
+
+  const matches = ThomannMatcher.pickMatches(productQuery, all, { min: settings.reverseMatchMin })
+    .filter((l) => !hidden[provider.id + ':' + l.id]);
+  return {
+    status: matches.length ? 'matches' : 'none',
+    source: provider.id,
+    label: provider.label,
+    currency: provider.currency,
+    query: productQuery,
+    searchQuery: query,
+    searchUrl: provider.searchUrl(query, settings),
+    count: matches.length,
+    best: matches[0] || null,
+    matches: matches.slice(0, 8),
+    scanned: all.length,
+    fromCache,
+    ts,
+    eurChfRate: settings.eurChfRate
+  };
+}
+
+async function lookupThomann(msg, settings) {
   const domain = settings.domain;
   if (!(await hasHostPermission(domain))) {
     return { status: 'noPermission', domain, searchUrl: ThomannClientLib.searchUrl(domain, msg.title, false) };
@@ -142,9 +258,22 @@ const CONTENT_FILES = [
   'content/adapters/leboncoin.js',
   'content/adapters/ricardo.js',
   'content/adapters/anibis.js',
+  'content/adapters/thomann.js',
   'content/adapters/generic.js',
   'content/content.js'
 ];
+
+const THOMANN_HOSTS = /(^|\.)(thomann\.de|thomann\.fr|thomannmusic\.ch|thomann\.[a-z]{2,3})$/;
+
+/** Origins the lookups for this page will need (Thomann shop, or the enabled marketplaces). */
+function originsNeededFor(url, settings) {
+  let host = '';
+  try { host = new URL(url).hostname; } catch (e) { return []; }
+  if (THOMANN_HOSTS.test(host)) {
+    return Object.keys(ThomannMarketplaces.PROVIDERS).filter((id) => settings.sources[id]).map((id) => ThomannMarketplaces.PROVIDERS[id].origin + '/*');
+  }
+  return [originFor(settings.domain)];
+}
 
 // Tab state: absent = OFF, { mode: 'page' } = ON for this page only (activeTab),
 // { mode: 'keep', origin } = KEEP ON: survives reloads and same-tab navigations within the
@@ -173,11 +302,14 @@ async function inject(tabId) {
   await browser.tabs.sendMessage(tabId, { type: 'enable' }).catch(() => {});
 }
 
-async function enableOnTab(tabId) {
+async function enableOnTab(tabId, url) {
   const settings = await getSettings();
   // Firefox treats MV3 host_permissions as optional; ask on first use (user gesture context).
-  if (!(await hasHostPermission(settings.domain))) {
-    try { await browser.permissions.request({ origins: [originFor(settings.domain)] }); } catch (e) { /* ignore */ }
+  const needed = originsNeededFor(url, settings);
+  const missing = [];
+  for (const o of needed) if (!(await browser.permissions.contains({ origins: [o] }).catch(() => false))) missing.push(o);
+  if (missing.length) {
+    try { await browser.permissions.request({ origins: missing }); } catch (e) { /* ignore */ }
   }
   await inject(tabId);
   enabledTabs.set(tabId, { mode: 'page' });
@@ -213,7 +345,7 @@ browser.action.onClicked.addListener((tab) => {
   const state = enabledTabs.get(tab.id);
   // No await before permissions.request: it must run inside the click's user-gesture context.
   let p;
-  if (!state) p = enableOnTab(tab.id);
+  if (!state) p = enableOnTab(tab.id, tab.url);
   else if (state.mode === 'page') p = keepOnTab(tab.id, tab.url).then((ok) => { if (!ok) return disableOnTab(tab.id); });
   else p = disableOnTab(tab.id);
   p.catch((e) => console.error('[thomann-companion] toggle failed', e));
@@ -272,6 +404,10 @@ browser.runtime.onMessage.addListener((msg, sender) => {
       return lookup(msg);
     case 'override':
       return setOverride(msg.query, msg.articleId).then(() => ({ ok: true }));
+    case 'hideListing':
+      return setHidden(msg.source, msg.id, msg.hidden !== false).then(() => ({ ok: true }));
+    case 'clearHidden':
+      return browser.storage.local.remove(HIDDEN_KEY).then(() => ({ ok: true }));
     case 'getSettings':
       return getSettings().then((s) => ({ settings: s, defaults: DEFAULT_SETTINGS, knownDomains: KNOWN_DOMAINS }));
     case 'saveSettings':
@@ -281,9 +417,12 @@ browser.runtime.onMessage.addListener((msg, sender) => {
     case 'clearOverrides':
       return browser.storage.local.remove(OVERRIDES_KEY).then(() => ({ ok: true }));
     case 'cacheStats':
-      return Promise.all([cacheStore.size(), getOverrides()]).then(([n, o]) => ({ cacheEntries: n, overrides: Object.keys(o).length }));
+      return Promise.all([cacheStore.size(), getOverrides(), getHidden()]).then(([n, o, h]) => ({ cacheEntries: n, overrides: Object.keys(o).length, hidden: Object.keys(h).length }));
     case 'hasPermission':
       return hasHostPermission(msg.domain).then((ok) => ({ ok }));
+    case 'marketPermissions':
+      return Promise.all(Object.values(ThomannMarketplaces.PROVIDERS).map((p) => browser.permissions.contains({ origins: [p.origin + '/*'] }).then((ok) => [p.id, ok])))
+        .then((pairs) => ({ perms: Object.fromEntries(pairs) }));
     case 'isEnabled': {
       const st = sender && sender.tab ? enabledTabs.get(sender.tab.id) : null;
       return Promise.resolve({ enabled: !!st, mode: st ? st.mode : 'off' });

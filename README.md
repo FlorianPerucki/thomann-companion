@@ -4,6 +4,8 @@ Firefox extension that shows the Thomann price next to products on the page you 
 
 Supported sites with dedicated adapters: leboncoin.fr, ricardo.ch, anibis.ch. Any other page falls back to a generic adapter (JSON-LD product pages, or a card heuristic), plus a right-click "Search on Thomann" item for selected text.
 
+**Reverse mode:** enable it on a Thomann page (search results, category list or product page) and each product gets one pill per marketplace — `lbc 3 · from 50 EUR`, `ric 1 · from 40 CHF`, `ani 0 ↗` — showing how many second-hand listings match and the cheapest one. Hover for the listings (title, price, place, age) with links and a **hide** button for false positives. Firefox asks once for access to the marketplaces when you first enable it on a Thomann page.
+
 ## Install for development
 
 1. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → pick `manifest.json`.
@@ -36,5 +38,8 @@ npm run build     # zip into web-ext-artifacts/
 Layout: `background/` (Thomann client, matcher, message router), `content/` (adapters + badge rendering), `options/`, `test/`.
 
 ## How lookups work
+
+Reverse mode queries the marketplaces directly, without cookies: leboncoin's search page (`/recherche?text=…&category=30`) and anibis's (`/fr/q/?query=…`) embed their results as JSON in `__NEXT_DATA__`; ricardo's search page is server-rendered and parsed with the same card logic as the ricardo page adapter. The Thomann product name is the query, listing titles are the candidates, and every listing above the threshold counts (wanted ads are dropped). One request at a time per marketplace, ≥ 800 ms apart, cached 2 h.
+
 
 The background script calls `https://<shop>/search_searchAjax.html?sw=<query>` with `credentials: "omit"`, which returns the same JSON the search page embeds (`articleListsSettings.articles[]` with model, price, availability, link). If that fails it falls back to parsing the HTML search page's `tho.bootstrapModule('search.index', …)` blob, then to a product page's JSON-LD. Results are cached in `storage.local` (24 h by default), requests are queued (2 parallel, ≥300 ms apart) and only cards near the viewport trigger lookups.

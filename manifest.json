@@ -7,13 +7,19 @@
   "host_permissions": [
     "https://www.thomannmusic.ch/*",
     "https://www.thomann.fr/*",
-    "https://www.thomann.de/*"
+    "https://www.thomann.de/*",
+    "https://www.leboncoin.fr/*",
+    "https://www.ricardo.ch/*",
+    "https://www.anibis.ch/*"
   ],
   "optional_host_permissions": ["*://*/*"],
   "background": {
     "scripts": [
+      "content/util.js",
+      "content/adapters/ricardo.js",
       "background/matcher.js",
       "background/thomann-client.js",
+      "background/marketplaces.js",
       "background/background.js"
     ]
   },

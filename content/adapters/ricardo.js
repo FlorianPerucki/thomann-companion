@@ -40,8 +40,8 @@
   globalThis.__thcAdapters.push({
     name: 'ricardo',
     matches: (loc) => /(^|\.)ricardo\.ch$/.test(loc.hostname),
-    findProducts(root) {
-      if (/^\/[a-z]{2}\/a\//.test(location.pathname)) return fromArticlePage();
+    findProducts(root, opts) {
+      if (!(opts && opts.listOnly) && /^\/[a-z]{2}\/a\//.test(location.pathname)) return fromArticlePage();
       const anchors = [...(root || document).querySelectorAll('a[href*="/a/"]')].filter((a) => /-\d{6,}\/?$/.test(a.getAttribute('href') || ''));
       const seen = new Set();
       const out = [];

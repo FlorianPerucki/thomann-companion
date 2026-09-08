@@ -218,7 +218,53 @@
     return { status: 'none', best: null, ranked };
   }
 
-  const api = { DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest, baseCode, fallbackQueries, hasCodeMatch, findSkipWord };
+  /**
+   * Reverse direction: the query is a clean Thomann product name, the candidates are noisy
+   * second-hand listing titles. Returns every listing scoring >= min, cheapest first.
+   */
+  function pickMatches(query, listings, opts) {
+    opts = opts || {};
+    const min = opts.min ?? 0.5;
+    const out = [];
+    for (const l of listings || []) {
+      if (l.wanted) continue;
+      const cand = { manufacturer: '', model: cleanQuery(l.title, { maxTokens: 12 }), inStock: true };
+      let score = scoreCandidate(query, cand);
+      // Brand-less titles ("A-131 VCA") are common: forgive a missing brand when the model code matches.
+      const qTokens = tokenize(normalizeModelCodes(query));
+      const qCode = qTokens.find((t) => MODEL_CODE.test(t));
+      if (qCode && score < min && tokenize(cand.model).some((t) => t === qCode || baseCode(t) === baseCode(qCode))) score = Math.max(score, min);
+      if (score >= min) out.push(Object.assign({}, l, { score: Math.round(score * 1000) / 1000 }));
+    }
+    out.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    return out;
+  }
+
+  /**
+   * Search queries for a marketplace, best first: "brand code" (or the whole clean name when
+   * there is no code), then "brand basecode", then brand alone. Marketplace search engines are
+   * literal, so the matcher does the filtering afterwards.
+   */
+  function marketQueries(productName, opts) {
+    opts = opts || {};
+    const tokens = tokenize(normalizeModelCodes(cleanQuery(productName)));
+    const codes = tokens.filter((t) => MODEL_CODE.test(t));
+    const brand = tokens.find((t) => !MODEL_CODE.test(t));
+    const out = [];
+    const push = (q) => { if (q && !out.includes(q)) out.push(q); };
+    if (codes.length) {
+      const code = codes[0];
+      if (!opts.baseOnly) push([brand, code].filter(Boolean).join(' '));
+      push([brand, baseCode(code)].filter(Boolean).join(' '));
+      if (brand) push(brand);
+    } else {
+      push(tokens.slice(0, 4).join(' '));
+      if (brand && tokens.length > 1) push(brand);
+    }
+    return out;
+  }
+
+  const api = { pickMatches, marketQueries, DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest, baseCode, fallbackQueries, hasCodeMatch, findSkipWord };
   root.ThomannMatcher = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

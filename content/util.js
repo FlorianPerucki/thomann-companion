@@ -24,14 +24,15 @@
   /** Leaf-ish elements (no element children, or only inline formatting) whose text looks like a price. */
   function findPriceLeaves(root, re) {
     const out = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+    const doc = root.ownerDocument || document;
+    const walker = doc.createTreeWalker(root, 1 /* SHOW_ELEMENT */, {
       acceptNode(el) {
-        if (el.closest('[data-thc-host]') || ['SCRIPT', 'STYLE', 'SVG', 'IMG', 'PICTURE'].includes(el.tagName)) return NodeFilter.FILTER_REJECT;
+        if (el.closest('[data-thc-host]') || ['SCRIPT', 'STYLE', 'SVG', 'IMG', 'PICTURE'].includes(el.tagName)) return 2 /* REJECT */;
         const hasBlockChild = [...el.children].some((c) => !['SPAN', 'B', 'STRONG', 'I', 'EM', 'SUP', 'SUB'].includes(c.tagName));
-        if (hasBlockChild) return NodeFilter.FILTER_SKIP;
+        if (hasBlockChild) return 3 /* SKIP */;
         const txt = (el.textContent || '').trim();
-        if (txt.length > 40 || !re.test(txt)) return NodeFilter.FILTER_SKIP;
-        return NodeFilter.FILTER_ACCEPT;
+        if (txt.length > 40 || !re.test(txt)) return 3 /* SKIP */;
+        return 1 /* ACCEPT */;
       }
     });
     let n;

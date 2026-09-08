@@ -41,7 +41,7 @@ function load(html, url) {
   // getBoundingClientRect is zero in jsdom; treat everything as visible.
   dom.window.Element.prototype.getBoundingClientRect = () => ({ width: 1, height: 1 });
   const dir = path.join(__dirname, '..', 'content');
-  for (const f of ['util.js', 'adapters/leboncoin.js', 'adapters/ricardo.js', 'adapters/anibis.js', 'adapters/generic.js']) {
+  for (const f of ['util.js', 'adapters/leboncoin.js', 'adapters/ricardo.js', 'adapters/anibis.js', 'adapters/thomann.js', 'adapters/generic.js']) {
     new Function(fs.readFileSync(path.join(dir, f), 'utf8'))();
   }
   const adapters = g.__thcAdapters;
@@ -106,4 +106,29 @@ test('leboncoin adapter handles the ad page (main price + sticky header, not the
   assert.equal(products.length, 2);
   assert.ok(products.every((p) => p.title === 'Doepfer A-183-5 Quad Attenuator' && p.priceValue === 50));
   assert.equal(products.find((p) => p.key === 'lbc:3215266634').mount.className, 'text-headline-1');
+});
+
+test('thomann adapter reads product-list entries and the product page, and targets the marketplaces', () => {
+  const list = `<div class="fx-product-list-entry" data-product-id="166483"><div class="product"><a class="product__content" href="doepfer_a131.htm">
+    <div class="product__title fx-text"><span class="title__manufacturer">Doepfer </span><span class="title__name">A-131</span></div></a>
+    <div class="product__price"><div class="fx-typography-price-primary fx-price-group__primary product__price-primary">68 CHF</div></div></div></div>
+    <div class="fx-product-list-entry" data-product-id="372340"><div class="product__title"><span class="title__manufacturer">Doepfer </span><span class="title__name">A-110-4 Thru Zero Quad VCO SE</span></div>
+    <div class="fx-typography-price-primary product__price-primary"></div></div>`;
+  const { adapter, products } = load(list, 'https://www.thomannmusic.ch/search_dir.html?sw=doepfer');
+  assert.equal(adapter.name, 'thomann');
+  assert.deepEqual(adapter.sources, ['leboncoin', 'ricardo', 'anibis']);
+  assert.equal(products.length, 2);
+  assert.equal(products[0].key, 'tho:166483');
+  assert.equal(products[0].title, 'Doepfer A-131');
+  assert.equal(products[0].priceValue, 68);
+  assert.equal(products[0].currency, 'CHF');
+  assert.equal(products[1].priceValue, null); // price filled later by Thomann's JS
+
+  const page = `<main><h1 class="font-sans">\n  Doepfer A-131\n</h1><div class="price-and-availability"><div class="fx-price-group"><span class="fx-typography-price-primary fx-price-group__primary">68 CHF</span></div></div>
+    <div class="price-and-availability"><span class="fx-price-group__primary">109 CHF</span></div></main>`;
+  const r2 = load(page, 'https://www.thomannmusic.ch/doepfer_a131.htm');
+  assert.equal(r2.products.length, 1);
+  assert.equal(r2.products[0].title, 'Doepfer A-131');
+  assert.equal(r2.products[0].priceValue, 68);
+  assert.equal(r2.products[0].key, 'tho:/doepfer_a131');
 });
