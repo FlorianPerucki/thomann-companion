@@ -54,11 +54,15 @@
     .panel button { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #bbb; border-radius: 4px; background: #f6f6f6; cursor: pointer; }
     .panel .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; color: #888; font-size: 10px; gap: 8px; }
     .panel .foot a { color: #1a56db; text-decoration: none; }
+    .preview { position: absolute; right: calc(100% + 6px); top: 0; width: 180px; min-height: 60px; padding: 4px; background: #fff; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+    .preview img { display: block; max-width: 172px; max-height: 172px; margin: 0 auto; }
+    .preview .cap { font-size: 10px; color: #666; margin-top: 4px; text-align: center; word-break: break-word; }
   `;
 
   const LOGO = { thomann: 't', leboncoin: 'lbc', ricardo: 'ric', anibis: 'ani', youtube: 'yt', modulargrid: 'mg' };
   const SOURCE_NAME = { thomann: 'Thomann', leboncoin: 'leboncoin', ricardo: 'ricardo.ch', anibis: 'anibis.ch', youtube: 'YouTube', modulargrid: 'ModularGrid' };
   const MARKET = { leboncoin: true, ricardo: true, anibis: true };
+  const EXTRA = { youtube: true, modulargrid: true }; // link pills, shown next to the product name
 
   function fmtPrice(v, cur) {
     if (v == null) return '?';
@@ -93,7 +97,7 @@
   }
 
   // ---------- badge ----------
-  function createBadge(product) {
+  function makeHost() {
     const host = document.createElement('span');
     host.setAttribute('data-thc-host', '1');
     host.tabIndex = 0;
@@ -101,7 +105,15 @@
     const style = document.createElement('style');
     style.textContent = CSS;
     shadow.appendChild(style);
-    const entry = { host, shadow, product, pills: {} };
+    return { host, shadow };
+  }
+
+  function createBadge(product) {
+    const main = makeHost();
+    const entry = { host: main.host, shadow: main.shadow, host2: null, product, pills: {} };
+    // Link pills (YouTube, ModularGrid) go next to the product name when the adapter found it.
+    const extraTarget = product.titleEl && product.titleEl.isConnected ? makeHost() : null;
+    if (extraTarget) entry.host2 = extraTarget.host;
     for (const src of sources) {
       const a = document.createElement('a');
       a.target = '_blank';
@@ -112,14 +124,15 @@
       a.addEventListener('focus', () => showPanel(entry, src));
       a.addEventListener('mouseleave', scheduleHidePanel);
       a.addEventListener('blur', scheduleHidePanel);
-      shadow.appendChild(a);
+      (EXTRA[src] && extraTarget ? extraTarget.shadow : main.shadow).appendChild(a);
       entry.pills[src] = { a, result: null, requested: false };
       renderPill(entry, src, { status: 'idle' });
     }
     const m = product.mount;
     if (m && m.parentNode) {
-      if (m.tagName === 'H1') m.appendChild(host); else m.insertAdjacentElement('afterend', host);
+      if (m.tagName === 'H1') m.appendChild(main.host); else m.insertAdjacentElement('afterend', main.host);
     } else return null;
+    if (extraTarget) product.titleEl.appendChild(extraTarget.host);
     return entry;
   }
 
@@ -158,7 +171,7 @@
       label('↗');
     } else if (r.status === 'mg') {
       a.href = r.url;
-      label(r.count === 1 ? '✓' : String(r.count));
+      label('↗');
     } else if (r.status === 'skipped') {
       a.href = r.searchUrl || '#';
       label('skipped');
@@ -172,6 +185,7 @@
       a.href = r.searchUrl || '#';
       const n = r.candidateCount || 0;
       if (n > 0) { a.classList.add('has'); label('no match ↗', [n + ' similar']); }
+      else if (EXTRA[src]) { a.classList.add('empty'); label('↗'); }
       else if (src !== 'thomann') { a.classList.add('empty'); label('0'); }
       else label('no match ↗');
     }
@@ -218,10 +232,11 @@
     clearTimeout(overlay.hideTimer);
     const r = entry.pills[src] && entry.pills[src].result;
     if (!r || r.status === 'loading' || r.status === 'skipped' || r.status === 'link') return;
+    if (r.status === 'mg' && r.count === 1) return;
     ensureOverlay();
     overlay.entry = entry;
     overlay.src = src;
-    overlay.shadow.querySelectorAll('.panel').forEach((n) => n.remove());
+    overlay.shadow.querySelectorAll('.panel, .preview').forEach((n) => n.remove());
     overlay.shadow.appendChild(buildPanel(entry, [src]));
     overlay.host.hidden = false;
     positionPanel();
@@ -240,6 +255,7 @@
   }
 
   function hidePanel() {
+    clearTimeout(overlay.previewTimer);
     if (overlay.host) overlay.host.hidden = true;
     overlay.entry = null;
     overlay.src = null;
@@ -248,6 +264,38 @@
   function scheduleHidePanel() {
     clearTimeout(overlay.hideTimer);
     overlay.hideTimer = setTimeout(hidePanel, 700);
+  }
+
+  // Image preview of a result, shown to the left of the panel after hovering a row for 300 ms.
+  function attachPreview(row, image, caption) {
+    if (!image) return;
+    row.addEventListener('mouseenter', () => {
+      clearTimeout(overlay.previewTimer);
+      overlay.previewTimer = setTimeout(() => showPreview(image, caption), 300);
+    });
+    row.addEventListener('mouseleave', () => { clearTimeout(overlay.previewTimer); });
+  }
+
+  function showPreview(image, caption) {
+    if (!overlay.shadow || overlay.host.hidden) return;
+    overlay.shadow.querySelectorAll('.preview').forEach((n) => n.remove());
+    const box = el('div', 'preview');
+    const img = document.createElement('img');
+    img.alt = caption || '';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', async () => {
+      // Page CSP or hotlink protection: let the background fetch it and hand back a data: URL.
+      if (img.dataset.fallback) { box.remove(); return; }
+      img.dataset.fallback = '1';
+      try {
+        const r = await browser.runtime.sendMessage({ type: 'fetchImage', url: image });
+        if (r && r.dataUrl) img.src = r.dataUrl; else box.remove();
+      } catch (e) { box.remove(); }
+    });
+    img.src = image;
+    box.appendChild(img);
+    if (caption) box.appendChild(el('div', 'cap', caption));
+    overlay.shadow.appendChild(box);
   }
 
   function el(tag, cls, text) {
@@ -278,6 +326,7 @@
       n.href = c.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
       n.title = c.name + (c.alternative ? ' — from "similar searches"' : '');
       row.append(n, el('span', 'p', fmtPrice(c.price, c.currency)), el('span', 's', c.score != null ? c.score.toFixed(2) : ''));
+      attachPreview(row, c.image, c.name);
       if (!r.best || c.id !== r.best.id) {
         const btn = el('button', null, 'use');
         btn.title = 'Remember this as the correct match for this query';
@@ -305,6 +354,7 @@
       n.title = l.title + (l.body ? '\n' + l.body.slice(0, 300) : '');
       const meta = [l.place, fmtAge(l.date)].filter(Boolean).join(' · ');
       row.append(n, el('span', 'p', fmtPrice(l.price, l.currency)), el('span', 's', meta));
+      attachPreview(row, l.image, l.title);
       const hide = el('button', null, 'hide');
       hide.title = 'Not this product — hide this listing';
       hide.addEventListener('click', async (e) => {
@@ -327,6 +377,7 @@
       const n = el('a', 'n', m.name);
       n.href = m.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
       row.append(n);
+      attachPreview(row, m.image, m.name);
       p.appendChild(row);
     }
     if (r.count > (r.modules || []).length) p.appendChild(el('div', 'empty', r.count + ' modules — see the search page.'));
@@ -362,7 +413,7 @@
     renderPill(entry, src, { status: 'loading' });
     let r;
     try {
-      r = await browser.runtime.sendMessage({ type: 'lookup', source: src, title: entry.product.title, key: entry.product.key, force: !!opts.force, priority: opts.priority || 0 });
+      r = await browser.runtime.sendMessage({ type: 'lookup', source: src, title: entry.product.title, brand: entry.product.brand || '', key: entry.product.key, force: !!opts.force, priority: opts.priority || 0 });
     } catch (e) {
       r = { status: 'error', error: String(e && e.message || e) };
     }
@@ -383,13 +434,14 @@
       if (!p || !p.title) continue;
       const existing = badges.get(p.key);
       if (existing) {
-        if (existing.host.isConnected) {
+        if (existing.host.isConnected && (!existing.host2 || existing.host2.isConnected)) {
           if (p.priceValue != null && existing.product.priceValue == null) { existing.product.priceValue = p.priceValue; existing.product.currency = p.currency; }
           continue;
         }
         // The site re-rendered the card: move the badge to the new mount, keep the results.
         badges.delete(p.key);
         if (existing.mark) existing.mark.remove();
+        if (existing.host2) existing.host2.remove();
         if (io) io.unobserve(existing.host);
       }
       const entry = createBadge(p);
@@ -462,7 +514,7 @@
     window.removeEventListener('resize', positionPanel);
     hidePanel();
     if (overlay.host) overlay.host.remove(); overlay.host = null; overlay.shadow = null;
-    for (const b of badges.values()) { b.host.remove(); if (b.mark) b.mark.remove(); }
+    for (const b of badges.values()) { b.host.remove(); if (b.host2) b.host2.remove(); if (b.mark) b.mark.remove(); }
     badges.clear();
     console.info('[thomann-companion] disabled');
   }

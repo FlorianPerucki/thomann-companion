@@ -54,7 +54,7 @@ test('leboncoin provider parses __NEXT_DATA__ ads and flags wanted ads', async (
   assert.equal(p.searchUrl('doepfer a-131', { lbcCategory: '30' }), 'https://www.leboncoin.fr/recherche?text=doepfer%20a-131&category=30');
   const listings = await fetchListings(p, 'doepfer a-131', { lbcCategory: '30' }, fakeFetch(LBC));
   assert.equal(listings.length, 3);
-  assert.deepEqual(listings[0], { unavailable: false, id: '3213384335', source: 'leboncoin', title: 'Doepfer A-131 exponential VCA', body: 'VCA en très bon état', price: 50, currency: 'EUR', url: 'https://www.leboncoin.fr/ad/instruments_de_musique/3213384335', place: 'Rennes', date: '2026-09-01 10:00:00', wanted: false });
+  assert.deepEqual(listings[0], { unavailable: false, id: '3213384335', source: 'leboncoin', title: 'Doepfer A-131 exponential VCA', body: 'VCA en très bon état', price: 50, currency: 'EUR', url: 'https://www.leboncoin.fr/ad/instruments_de_musique/3213384335', place: 'Rennes', date: '2026-09-01 10:00:00', image: null, wanted: false });
   assert.equal(listings[1].wanted, true);
 });
 

@@ -132,3 +132,13 @@ test('thomann adapter reads product-list entries and the product page, and targe
   assert.equal(r2.products[0].priceValue, 68);
   assert.equal(r2.products[0].key, 'tho:/doepfer_a131');
 });
+
+test('adapters expose the title element so link pills can sit next to the name', () => {
+  const lbc = load(LBC_HTML.replace('<p class="text-callout font-bold">', '<p class="title">(eurorack) Doepfer a-148</p><p class="text-callout font-bold">'), 'https://www.leboncoin.fr/recherche?text=doepfer');
+  assert.equal(lbc.products[0].titleEl.className, 'title');
+  const ric = load(RICARDO_HTML, 'https://www.ricardo.ch/fr/s/doepfer/');
+  assert.equal(ric.products[0].titleEl.textContent, 'Doepfer A-156 VE');
+  assert.equal(ric.products[0].image, 'x');
+  const ani = load(ANIBIS_HTML, 'https://www.anibis.ch/fr/q/doepfer');
+  assert.equal(ani.products[0].titleEl.tagName, 'A');
+});

@@ -12,7 +12,11 @@
     "https://www.leboncoin.fr/*",
     "https://www.ricardo.ch/*",
     "https://www.anibis.ch/*",
-    "https://modulargrid.com/*"
+    "https://modulargrid.com/*",
+    "https://thumbs.static-thomann.de/*",
+    "https://img.leboncoin.fr/*",
+    "https://img.ricardostatic.ch/*",
+    "https://c.anibis.ch/*"
   ],
   "optional_host_permissions": ["*://*/*"],
   "background": {

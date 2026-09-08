@@ -24,7 +24,8 @@
       if (before) priceEl = before;
     }
     const price = U.parsePrice(priceEl.textContent);
-    return { key: 'ric:' + key, title, priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl };
+    const titleEl = [...a.querySelectorAll('span')].find((e) => !e.children.length && e.textContent.trim() === title) || null;
+    return { key: 'ric:' + key, title, titleEl, image: img ? img.getAttribute('src') : null, priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl };
   }
 
   function fromArticlePage() {
@@ -34,7 +35,7 @@
     const scope = h1.closest('main') || document.body;
     const priceEl = U.findPriceLeaves(scope, /^\s*(?:CHF\s*)?\d{1,3}(?:['\s]?\d{3})*(?:[.,]\d{2}|\.–)?\s*(?:CHF)?\s*$/).find(U.isVisible) || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null;
-    return [{ key: 'ric:' + key, title: h1.textContent.trim(), priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl || h1 }];
+    return [{ key: 'ric:' + key, title: h1.textContent.trim(), titleEl: h1, priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl || h1 }];
   }
 
   globalThis.__thcAdapters.push({

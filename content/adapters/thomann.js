@@ -17,7 +17,7 @@
     const priceEl = el.querySelector('.product__price-primary, .fx-price-group__primary') || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null; // empty until Thomann's JS fills it
     const titleEl = el.querySelector('.product__title') || null;
-    return { key: 'tho:' + id, title, titleEl, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || titleEl || el };
+    return { key: 'tho:' + id, title, brand: man ? man.textContent.trim() : '', titleEl, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || titleEl || el };
   }
 
   function fromProductPage() {

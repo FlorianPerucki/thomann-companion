@@ -56,6 +56,7 @@
         url: a.url || ('https://www.leboncoin.fr/ad/x/' + a.list_id),
         place: a.location && (a.location.city || a.location.department_name) || '',
         date: a.first_publication_date || a.index_date || null,
+        image: a.images && (a.images.small_url || a.images.thumb_url || (Array.isArray(a.images.urls) && a.images.urls[0])) || null,
         wanted: a.ad_type === 'demand'
       }));
     }
@@ -90,6 +91,7 @@
           url: href && /^https?:/.test(href) ? href : 'https://www.ricardo.ch' + href,
           place: '',
           date: null,
+          image: p.image || null,
           wanted: false
         };
       });
@@ -134,6 +136,7 @@
           url: 'https://www.anibis.ch/' + lang + '/vi/' + n.listingID,
           place: pc.locationName || pc.city || pc.name || (pc.postcode ? String(pc.postcode) : ''),
           date: n.timestamp || null,
+          image: (n.thumbnail && ((n.thumbnail.normalRendition && n.thumbnail.normalRendition.src) || n.thumbnail.src || (typeof n.thumbnail === 'string' ? n.thumbnail : null))) || null,
           wanted: /^(cherche|recherche|suche|gesucht|cerco)\b/i.test((n.localization && n.localization.title) || '')
         };
       });

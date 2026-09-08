@@ -48,7 +48,7 @@
       }) || null;
     }
     if (!priceEl) priceEl = U.findPriceLeaves(scope, ANY_PRICE_RE).find(U.isVisible) || null;
-    return { key: 'gen:' + location.href.split('#')[0], title, priceEl, priceValue, currency, mount: priceEl || h1 || null };
+    return { key: 'gen:' + location.href.split('#')[0], title, titleEl: h1 || null, priceEl, priceValue, currency, mount: priceEl || h1 || null };
   }
 
   /** Cards = anchors with an id-looking href that contain a title-ish text and a price-ish leaf. */

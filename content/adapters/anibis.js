@@ -21,7 +21,8 @@
     if (!title || !key) return null;
     const priceEl = U.findPriceLeaves(card, CHF_RE)[0] || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null;
-    return { key: 'ani:' + key, title, priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl || card };
+    const titleEl = [...card.querySelectorAll('a, div, span, h2, h3')].find((e) => !e.children.length && e.textContent.trim() === title) || null;
+    return { key: 'ani:' + key, title, titleEl, priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl || card };
   }
 
   function fromAdPage() {
@@ -31,7 +32,7 @@
     const scope = h1.closest('main') || document.body;
     const priceEl = U.findPriceLeaves(scope, CHF_RE).find(U.isVisible) || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null;
-    return [{ key: 'ani:' + key, title: h1.textContent.trim(), priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl || h1 }];
+    return [{ key: 'ani:' + key, title: h1.textContent.trim(), titleEl: h1, priceEl, priceValue: price ? price.value : null, currency: 'CHF', mount: priceEl || h1 }];
   }
 
   globalThis.__thcAdapters.push({

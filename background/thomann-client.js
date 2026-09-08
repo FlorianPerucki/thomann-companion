@@ -55,7 +55,7 @@
       availabilityText: av.textShort || av.label || '',
       bstock: !!a.isBstock,
       archived: !!a.isArchived,
-      image: a.mainImage && (a.mainImage.url || a.mainImage.src) || null,
+      image: (a.mainImage && (a.mainImage.url || a.mainImage.src)) || (a.number ? 'https://thumbs.static-thomann.de/thumb/thumb220x220/pics/prod/' + a.number + '.jpg' : null),
       alternative: !!alternative // from "results for similar searches", not a direct hit
     };
   }

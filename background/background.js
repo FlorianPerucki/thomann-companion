@@ -152,34 +152,62 @@ const MG_ORIGIN = 'https://modulargrid.com';
 const mgQueue = new ThomannClientLib.Queue({ concurrency: 1, spacingMs: 600 });
 const mgInflight = new Map();
 
+function mgSearchUrl(q) {
+  return MG_ORIGIN + '/e/modules/browser?SearchName=' + encodeURIComponent(q) + '&SearchShowothers=0&order=newest&direction=asc';
+}
+
+async function mgFind(q, force) {
+  const key = 'mg|' + q.toLowerCase();
+  const ttl = 24 * 3600 * 1000;
+  if (!force) { const hit = await cacheStore.get(key); if (hit && Date.now() - hit.ts < ttl) return hit.data; }
+  if (!mgInflight.has(key)) {
+    mgInflight.set(key, mgQueue.push(async () => {
+      const res = await fetch(MG_ORIGIN + '/e/modules/find?SearchName=' + encodeURIComponent(q) + '&SearchShowothers=0&order=newest&direction=asc', { credentials: 'omit', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const countEl = doc.querySelector('#search-count');
+      const modules = [...doc.querySelectorAll('.box-module')].map((b) => {
+        const a = b.querySelector('h2.module-name a, .module-name a, a[href^="/e/"]');
+        const img = b.querySelector('img');
+        return a ? { name: a.textContent.trim(), url: MG_ORIGIN + a.getAttribute('href'), id: b.getAttribute('data-module-id'), image: img ? MG_ORIGIN + img.getAttribute('src') : null } : null;
+      }).filter(Boolean);
+      const count = countEl ? Number(countEl.getAttribute('data-search-count')) : modules.length;
+      return { count: isFinite(count) ? count : modules.length, modules: modules.slice(0, 8) };
+    }).finally(() => mgInflight.delete(key)));
+  }
+  const data = await mgInflight.get(key);
+  await cacheStore.set(key, { ts: Date.now(), data });
+  return data;
+}
+
+/** Queries to try on ModularGrid: the full name, then without the brand ("Erica Synths Pico Output" -> "Pico Output"). */
+function mgQueries(msg) {
+  const full = productNameFor(msg);
+  const out = [full];
+  const brand = (msg.brand || '').trim().toLowerCase();
+  const tokens = full.split(' ');
+  if (brand) {
+    const bt = ThomannMatcher.tokenize(brand);
+    const rest = tokens.filter((t) => !bt.includes(t));
+    if (rest.length && rest.length < tokens.length) out.push(rest.join(' '));
+  }
+  if (tokens.length > 1) out.push(tokens.slice(1).join(' '));
+  if (tokens.length > 2) out.push(tokens.slice(2).join(' '));
+  return [...new Set(out)].slice(0, 3);
+}
+
 async function lookupModularGrid(msg, settings) {
   const q = productNameFor(msg);
-  const searchUrl = MG_ORIGIN + '/e/modules/browser?SearchName=' + encodeURIComponent(q) + '&SearchShowothers=0&order=newest&direction=asc';
+  const searchUrl = mgSearchUrl(q);
   if (!(await browser.permissions.contains({ origins: [MG_ORIGIN + '/*'] }).catch(() => false))) {
     return { status: 'noPermission', source: 'modulargrid', domain: 'modulargrid.com', searchUrl, query: q };
   }
-  const key = 'mg|' + q.toLowerCase();
-  const ttl = 24 * 3600 * 1000;
-  let data = null;
-  if (!msg.force) { const hit = await cacheStore.get(key); if (hit && Date.now() - hit.ts < ttl) data = hit.data; }
-  if (!data) {
-    if (!mgInflight.has(key)) {
-      mgInflight.set(key, mgQueue.push(async () => {
-        const res = await fetch(MG_ORIGIN + '/e/modules/find?SearchName=' + encodeURIComponent(q) + '&SearchShowothers=0&order=newest&direction=asc', { credentials: 'omit', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const html = await res.text();
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const countEl = doc.querySelector('#search-count');
-        const modules = [...doc.querySelectorAll('.box-module')].map((b) => {
-          const a = b.querySelector('h2.module-name a, .module-name a, a[href^="/e/"]');
-          return a ? { name: a.textContent.trim(), url: MG_ORIGIN + a.getAttribute('href'), id: b.getAttribute('data-module-id') } : null;
-        }).filter(Boolean);
-        const count = countEl ? Number(countEl.getAttribute('data-search-count')) : modules.length;
-        return { count: isFinite(count) ? count : modules.length, modules: modules.slice(0, 8) };
-      }).finally(() => mgInflight.delete(key)));
-    }
-    try { data = await mgInflight.get(key); } catch (e) { return { status: 'error', source: 'modulargrid', error: String(e && e.message || e), searchUrl, query: q }; }
-    await cacheStore.set(key, { ts: Date.now(), data });
+  let data = null, used = q;
+  for (const cand of mgQueries(msg)) {
+    try { data = await mgFind(cand, !!msg.force); } catch (e) { return { status: 'error', source: 'modulargrid', error: String(e && e.message || e), searchUrl, query: q }; }
+    used = cand;
+    if (data.count > 0) break;
   }
   return {
     status: data.count > 0 ? 'mg' : 'none',
@@ -187,8 +215,9 @@ async function lookupModularGrid(msg, settings) {
     query: q,
     count: data.count,
     modules: data.modules,
-    url: data.count === 1 && data.modules[0] ? data.modules[0].url : searchUrl,
-    searchUrl
+    searchQuery: used,
+    url: data.count === 1 && data.modules[0] ? data.modules[0].url : mgSearchUrl(used),
+    searchUrl: mgSearchUrl(used)
   };
 }
 
@@ -367,7 +396,7 @@ function originsNeededFor(url, settings) {
 // removed again when the user turns it off.
 const BADGE = {
   off: { text: '', color: '#2e7d32', title: 'Thomann prices: click to enable on this page', icon: 'icons/off.svg' },
-  page: { text: 'ON', color: '#66bb6a', title: 'Thomann prices: ON for this page (click: keep on for this site · again: always on · again: off)', icon: 'icons/on.svg' },
+  page: { text: 'ON', color: '#8bc34a', title: 'Thomann prices: ON for this page (click: keep on for this site · again: always on · again: off)', icon: 'icons/on.svg' },
   keep: { text: 'ON', color: '#2e7d32', title: 'Thomann prices: KEPT ON for this site in this tab (click: always on · again: off)', icon: 'icons/on.svg' },
   always: { text: 'ON', color: '#0b3d12', title: 'Thomann prices: ALWAYS ON, every tab and site (click to turn off)', icon: 'icons/on.svg' }
 };
@@ -404,16 +433,14 @@ async function inject(tabId) {
 async function enableOnTab(tabId, url) {
   const settings = await getSettings();
   // Firefox treats MV3 host_permissions as optional; ask on first use (user gesture context).
-  await requestMissing(originsNeededFor(url, settings));
+  try { await requestMissing(originsNeededFor(url, settings)); } catch (e) { console.warn('[thomann-companion] permission request failed', e); }
   await inject(tabId);
   enabledTabs.set(tabId, { mode: 'page' });
   await setBadge(tabId, 'page');
 }
 
-async function keepOnTab(tabId, url) {
-  const origin = originPatternFor(url);
+async function keepOnTab(tabId, origin) {
   if (!origin) return false;
-  if (!(await requestMissing([origin]))) return false;
   enabledTabs.set(tabId, { mode: 'keep', origin });
   await persistStates();
   await setBadge(tabId, 'keep');
@@ -421,11 +448,7 @@ async function keepOnTab(tabId, url) {
 }
 
 async function alwaysOnEnable() {
-  const settings = await getSettings();
-  // All sites (for injection) plus everything the lookups need.
-  const needed = ['*://*/*', MG_ORIGIN + '/*', originFor(settings.domain)]
-    .concat(Object.keys(ThomannMarketplaces.PROVIDERS).filter((id) => settings.sources[id]).map((id) => ThomannMarketplaces.PROVIDERS[id].origin + '/*'));
-  if (!(await requestMissing(needed))) return false;
+  // "*://*/*" (granted from the click handler) covers injection everywhere and every lookup host.
   alwaysOn = true;
   await browser.storage.local.set({ [ALWAYS_KEY]: true });
   await setBadgeAllTabs('always');
@@ -465,16 +488,25 @@ async function disableOnTab(tabId) {
 }
 
 // Click cycle: OFF -> ON (this page) -> ON (keep, this site in this tab) -> ON (always, everywhere) -> OFF.
+// permissions.request() is called directly from the click handler (before any await) so Firefox
+// still considers it part of the user gesture; a refused prompt leaves the previous state in place.
 browser.action.onClicked.addListener((tab) => {
   if (!tab || tab.id == null) return;
   if (!/^https?:/.test(tab.url || '')) return;
   const state = enabledTabs.get(tab.id); // stateReady has normally resolved long before a click
-  // No await before permissions.request: it must run inside the click's user-gesture context.
   let p;
-  if (alwaysOn) p = alwaysOnDisable();
-  else if (!state) p = enableOnTab(tab.id, tab.url);
-  else if (state.mode === 'page') p = keepOnTab(tab.id, tab.url).then((ok) => { if (!ok) return disableOnTab(tab.id); });
-  else p = alwaysOnEnable().then((ok) => { if (!ok) return disableOnTab(tab.id); });
+  if (alwaysOn) {
+    p = alwaysOnDisable();
+  } else if (!state) {
+    p = enableOnTab(tab.id, tab.url);
+  } else if (state.mode === 'page') {
+    const origin = originPatternFor(tab.url);
+    p = browser.permissions.request({ origins: [origin] })
+      .then((ok) => (ok ? keepOnTab(tab.id, origin) : disableOnTab(tab.id)));
+  } else {
+    p = browser.permissions.request({ origins: ['*://*/*'] })
+      .then((ok) => (ok ? alwaysOnEnable() : disableOnTab(tab.id)));
+  }
   p.catch((e) => console.error('[thomann-companion] toggle failed', e));
 });
 
@@ -563,6 +595,13 @@ browser.runtime.onMessage.addListener((msg, sender) => {
       const st = sender && sender.tab ? enabledTabs.get(sender.tab.id) : null;
       return Promise.resolve({ enabled: alwaysOn || !!st, mode: alwaysOn ? 'always' : (st ? st.mode : 'off') });
     }
+    case 'fetchImage':
+      return fetch(msg.url, { credentials: 'omit' }).then(async (r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const blob = await r.blob();
+        const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+        return { dataUrl };
+      }).catch((e) => ({ error: String(e && e.message || e) }));
     case 'openTab':
       return browser.tabs.create({ url: msg.url, active: msg.active !== false }).then(() => ({ ok: true }));
     default:
