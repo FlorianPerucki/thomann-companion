@@ -39,6 +39,22 @@
   <label><span>EUR → CHF rate for the "cheaper on Thomann" highlight<small>0 disables cross-currency comparison.</small></span>
     <input type="number" id="eurChfRate" min="0" step="0.001"></label>
 
+  <h2>Second-hand prices on Thomann pages</h2>
+  <label><span>leboncoin.fr <small id="perm-leboncoin"></small></span><input type="checkbox" id="src-leboncoin"></label>
+  <label><span>ricardo.ch <small id="perm-ricardo"></small></span><input type="checkbox" id="src-ricardo"></label>
+  <label><span>anibis.ch <small id="perm-anibis"></small></span><input type="checkbox" id="src-anibis"></label>
+  <div class="row"><button id="grantMarkets">Grant access to the enabled marketplaces</button></div>
+  <label><span>Listing match threshold<small>0–1. Listings scoring below are not counted.</small></span>
+    <input type="number" id="reverseMatchMin" min="0" max="1" step="0.05"></label>
+  <label><span>Cache lifetime for listings (hours)</span><input type="number" id="reverseTtlHours" min="0" step="1"></label>
+  <label><span>leboncoin category id<small>30 = Instruments de musique. Empty = all.</small></span>
+    <input type="text" id="lbcCategory" placeholder="30"></label>
+  <label><span>ricardo / anibis language<small>fr, de, it or en (URL path).</small></span>
+    <input type="text" id="marketLang" placeholder="fr"></label>
+  <label><span>Send cookies to marketplaces<small>Off by default. Turn on only if lookups get blocked.</small></span>
+    <input type="checkbox" id="allowMarketCookies"></label>
+  <div class="row"><button id="clearHidden">Clear hidden listings</button></div>
+
   <h2>Requests &amp; cache</h2>
   <label><span>Cache lifetime (hours)<small>0 disables caching.</small></span>
     <input type="number" id="ttlHours" min="0" step="1"></label>
