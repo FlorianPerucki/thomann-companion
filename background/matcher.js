@@ -226,18 +226,20 @@
     opts = opts || {};
     const min = opts.min ?? 0.5;
     const minLen = opts.minTokenLength ?? 3;
-    const qTokens = tokenize(normalizeModelCodes(query));
-    // Strict rule: every word of the Thomann product name with 3+ characters must appear in
-    // the listing title (model codes also accept their base form, A-140 ~ A-140-1).
-    const required = qTokens.filter((t) => t.length >= minLen);
+    const fold = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const words = (str) => new Set(tokenize(normalizeModelCodes(fold(stripParentheses(str)))));
+    // Strict rule, on the raw words (no stop-word cleaning): every word of the Thomann product
+    // name with 3+ characters must appear in the listing title. Model codes also accept their
+    // base form (A-140 ~ A-140-1).
+    const productName = opts.productName || query;
+    const required = [...words(productName)].filter((t) => t.length >= minLen);
     const out = [];
     for (const l of listings || []) {
       if (l.wanted) continue;
-      const model = cleanQuery(l.title, { maxTokens: 16 });
-      const ct = new Set(tokenize(normalizeModelCodes(model)));
+      const ct = words(l.title);
       const present = (t) => ct.has(t) || (MODEL_CODE.test(t) && [...ct].some((c) => MODEL_CODE.test(c) && baseCode(c) === baseCode(t)));
-      if (!required.every(present)) continue;
-      const score = scoreCandidate(query, { manufacturer: '', model, inStock: true });
+      if (!required.length || !required.every(present)) continue;
+      const score = scoreCandidate(query, { manufacturer: '', model: cleanQuery(l.title, { maxTokens: 16 }), inStock: true });
       if (score >= min) out.push(Object.assign({}, l, { score: Math.round(score * 1000) / 1000 }));
     }
     out.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));

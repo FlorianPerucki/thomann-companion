@@ -182,12 +182,12 @@ async function lookupMarket(provider, msg, settings) {
     if (r.error) { lastError = r.error; continue; }
     fromCache = fromCache && r.fromCache; ts = Math.min(ts, r.ts || ts);
     for (const l of r.listings) if (!seen.has(l.id)) { seen.add(l.id); all.push(l); }
-    const matches = ThomannMatcher.pickMatches(productQuery, all, { min: settings.reverseMatchMin });
+    const matches = ThomannMatcher.pickMatches(productQuery, all, { min: settings.reverseMatchMin, productName: msg.title });
     if (matches.length) break; // a narrower query already found the product; don't widen
   }
   if (!all.length && lastError) return { status: 'error', source: provider.id, error: lastError, searchUrl, matches: [], count: 0 };
 
-  const matches = ThomannMatcher.pickMatches(productQuery, all, { min: settings.reverseMatchMin })
+  const matches = ThomannMatcher.pickMatches(productQuery, all, { min: settings.reverseMatchMin, productName: msg.title })
     .filter((l) => !hidden[provider.id + ':' + l.id]);
   return {
     status: matches.length ? 'matches' : 'none',
