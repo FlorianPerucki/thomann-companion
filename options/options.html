@@ -55,7 +55,16 @@
     <input type="checkbox" id="allowMarketCookies"></label>
   <label><span>Retry with cookies when blocked<small>If a marketplace answers 403 to an anonymous request (leboncoin's DataDome does), retry once with your browser's cookies for that site.</small></span>
     <input type="checkbox" id="marketCookieFallback"></label>
+  <label><span>Ignore leboncoin listings marked "Achat en cours"<small>A sale is being finalized; the item is no longer available.</small></span>
+    <input type="checkbox" id="lbcSkipInProgress"></label>
   <div class="row"><button id="clearHidden">Clear hidden listings</button></div>
+
+  <h2>Extra links</h2>
+  <label><span>YouTube search link<small>A "yt" pill searching YouTube for the product name (Thomann and marketplace pages).</small></span>
+    <input type="checkbox" id="youtube"></label>
+  <label><span>ModularGrid link <small id="perm-modulargrid"></small><small>A "mg" pill: direct module page when the ModularGrid search has exactly one hit, otherwise the search page with the hit count.</small></span>
+    <input type="checkbox" id="modulargrid"></label>
+  <div class="row"><button id="grantMg">Grant access to modulargrid.com</button></div>
 
   <h2>Requests &amp; cache</h2>
   <label><span>Cache lifetime (hours)<small>0 disables caching.</small></span>

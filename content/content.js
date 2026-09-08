@@ -27,6 +27,9 @@
     .b.error { border-color: #d32f2f; color: #b71c1c; }
     .b.alt { border-style: dashed; }
     .b.none.has { border-style: dashed; color: #333; border-color: #888; }
+    .b.empty { opacity: .45; }
+    .b.link { color: #444; }
+    .b.mg { border-color: #6a1b9a; color: #4a148c; background: #f8f1fb; }
     .logo { font-weight: 800; letter-spacing: -.02em; color: #0aa; }
     .logo.leboncoin { color: #ec5a13; }
     .logo.ricardo { color: #1d4ed8; }
@@ -53,8 +56,9 @@
     .panel .foot a { color: #1a56db; text-decoration: none; }
   `;
 
-  const LOGO = { thomann: 't', leboncoin: 'lbc', ricardo: 'ric', anibis: 'ani' };
-  const SOURCE_NAME = { thomann: 'Thomann', leboncoin: 'leboncoin', ricardo: 'ricardo.ch', anibis: 'anibis.ch' };
+  const LOGO = { thomann: 't', leboncoin: 'lbc', ricardo: 'ric', anibis: 'ani', youtube: 'yt', modulargrid: 'mg' };
+  const SOURCE_NAME = { thomann: 'Thomann', leboncoin: 'leboncoin', ricardo: 'ricardo.ch', anibis: 'anibis.ch', youtube: 'YouTube', modulargrid: 'ModularGrid' };
+  const MARKET = { leboncoin: true, ricardo: true, anibis: true };
 
   function fmtPrice(v, cur) {
     if (v == null) return '?';
@@ -149,6 +153,12 @@
       if (isCheaper(product, b.price, b.currency, r.eurChfRate)) a.classList.add('cheaper');
       a.href = b.url;
       label(r.count + ' · from ' + fmtPrice(b.price, b.currency));
+    } else if (r.status === 'link') {
+      a.href = r.url;
+      label('↗');
+    } else if (r.status === 'mg') {
+      a.href = r.url;
+      label(r.count === 1 ? '✓' : String(r.count));
     } else if (r.status === 'skipped') {
       a.href = r.searchUrl || '#';
       label('skipped');
@@ -162,10 +172,28 @@
       a.href = r.searchUrl || '#';
       const n = r.candidateCount || 0;
       if (n > 0) { a.classList.add('has'); label('no match ↗', [n + ' similar']); }
-      else if (src !== 'thomann') label('0 ↗');
+      else if (src !== 'thomann') { a.classList.add('empty'); label('0'); }
       else label('no match ↗');
     }
+    updateMark(entry);
     if (overlay.entry === entry && overlay.src === src) showPanel(entry, src);
+  }
+
+  // A dot in front of the product name when at least one marketplace has a listing.
+  function updateMark(entry) {
+    const has = Object.keys(entry.pills).some((s) => MARKET[s] && entry.pills[s].result && entry.pills[s].result.status === 'matches');
+    const t = entry.product.titleEl;
+    if (!t || !t.isConnected) return;
+    if (has && !entry.mark) {
+      const m = document.createElement('span');
+      m.setAttribute('data-thc-host', 'mark');
+      m.style.cssText = 'display:inline-block;width:.55em;height:.55em;border-radius:50%;background:#2e7d32;margin-right:.4em;vertical-align:middle;box-shadow:0 0 0 2px #c8e6c9;';
+      t.insertBefore(m, t.firstChild);
+      entry.mark = m;
+    } else if (!has && entry.mark) {
+      entry.mark.remove();
+      entry.mark = null;
+    }
   }
 
   // ---------- hover panel overlay ----------
@@ -189,7 +217,7 @@
   function showPanel(entry, src) {
     clearTimeout(overlay.hideTimer);
     const r = entry.pills[src] && entry.pills[src].result;
-    if (!r || r.status === 'loading' || r.status === 'skipped') return;
+    if (!r || r.status === 'loading' || r.status === 'skipped' || r.status === 'link') return;
     ensureOverlay();
     overlay.entry = entry;
     overlay.src = src;
@@ -237,6 +265,7 @@
       const r = entry.pills[src].result;
       if (src !== 'thomann') p.appendChild(el('h4', null, SOURCE_NAME[src] || src));
       if (src === 'thomann') thomannSection(p, entry, r);
+      else if (src === 'modulargrid') mgSection(p, entry, r);
       else marketSection(p, entry, src, r);
     }
     return p;
@@ -290,6 +319,19 @@
       p.appendChild(el('div', 'empty', r.status === 'error' ? 'Error: ' + (r.error || '') : r.status === 'noPermission' ? 'No access granted for this site (see options).' : 'No matching listing' + (r.scanned ? ' among ' + r.scanned + ' results' : '') + '.'));
     }
     p.appendChild(footer(entry, src, r, null));
+  }
+
+  function mgSection(p, entry, r) {
+    for (const m of r.modules || []) {
+      const row = el('div', 'row');
+      const n = el('a', 'n', m.name);
+      n.href = m.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
+      row.append(n);
+      p.appendChild(row);
+    }
+    if (r.count > (r.modules || []).length) p.appendChild(el('div', 'empty', r.count + ' modules — see the search page.'));
+    if (!(r.modules || []).length) p.appendChild(el('div', 'empty', r.status === 'error' ? 'Error: ' + (r.error || '') : r.status === 'noPermission' ? 'No access granted for modulargrid.com (see options).' : 'No module found.'));
+    p.appendChild(footer(entry, 'modulargrid', r, null));
   }
 
   function footer(entry, src, r, onForget) {
@@ -347,6 +389,7 @@
         }
         // The site re-rendered the card: move the badge to the new mount, keep the results.
         badges.delete(p.key);
+        if (existing.mark) existing.mark.remove();
         if (io) io.unobserve(existing.host);
       }
       const entry = createBadge(p);
@@ -376,7 +419,14 @@
     const base = adapter.sources || ['thomann'];
     // Marketplace sources can be switched off in the options.
     browser.runtime.sendMessage({ type: 'getSettings' })
-      .then((r) => { const on = (r && r.settings && r.settings.sources) || {}; sources = base.filter((x) => x === 'thomann' || on[x] !== false); if (!sources.length) sources = base; })
+      .then((r) => {
+        const st = (r && r.settings) || {};
+        const on = st.sources || {};
+        sources = base.filter((x) => x === 'thomann' || on[x] !== false);
+        if (!sources.length) sources = base;
+        if (st.modulargrid !== false) sources.push('modulargrid');
+        if (st.youtube !== false) sources.push('youtube');
+      })
       .catch(() => { sources = base; })
       .then(() => { if (enabled) start(); });
   }
@@ -412,7 +462,7 @@
     window.removeEventListener('resize', positionPanel);
     hidePanel();
     if (overlay.host) overlay.host.remove(); overlay.host = null; overlay.shadow = null;
-    for (const b of badges.values()) b.host.remove();
+    for (const b of badges.values()) { b.host.remove(); if (b.mark) b.mark.remove(); }
     badges.clear();
     console.info('[thomann-companion] disabled');
   }

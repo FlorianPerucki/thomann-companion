@@ -54,8 +54,15 @@ test('leboncoin provider parses __NEXT_DATA__ ads and flags wanted ads', async (
   assert.equal(p.searchUrl('doepfer a-131', { lbcCategory: '30' }), 'https://www.leboncoin.fr/recherche?text=doepfer%20a-131&category=30');
   const listings = await fetchListings(p, 'doepfer a-131', { lbcCategory: '30' }, fakeFetch(LBC));
   assert.equal(listings.length, 3);
-  assert.deepEqual(listings[0], { id: '3213384335', source: 'leboncoin', title: 'Doepfer A-131 exponential VCA', body: 'VCA en très bon état', price: 50, currency: 'EUR', url: 'https://www.leboncoin.fr/ad/instruments_de_musique/3213384335', place: 'Rennes', date: '2026-09-01 10:00:00', wanted: false });
+  assert.deepEqual(listings[0], { unavailable: false, id: '3213384335', source: 'leboncoin', title: 'Doepfer A-131 exponential VCA', body: 'VCA en très bon état', price: 50, currency: 'EUR', url: 'https://www.leboncoin.fr/ad/instruments_de_musique/3213384335', place: 'Rennes', date: '2026-09-01 10:00:00', wanted: false });
   assert.equal(listings[1].wanted, true);
+});
+
+test('leboncoin provider flags "Achat en cours" cards as unavailable', async () => {
+  const html = LBC.replace('<body>', '<body><article aria-label="Doepfer A-140 ADSR"><a href="/ad/instruments_de_musique/3213384337"></a><span>Achat en cours</span></article>');
+  const listings = await fetchListings(PROVIDERS.leboncoin, 'x', {}, fakeFetch(html));
+  assert.equal(listings.find((l) => l.id === '3213384337').unavailable, true);
+  assert.equal(listings.find((l) => l.id === '3213384335').unavailable, false);
 });
 
 test('ricardo provider parses server-rendered cards through the shared adapter', async () => {

@@ -1,8 +1,10 @@
 # Thomann Price Companion
 
-Firefox extension that shows the Thomann price next to products on the page you are looking at. It is **off by default**. The toolbar button cycles through three states per tab: **ON** (this page only; a new page load turns it off), **KEEP** (badge "ON" in a darker green; stays on across reloads and links within the same site in that tab — Firefox asks once for access to that site, and the access is dropped again when you turn it off or leave the site), then **OFF**.
+Firefox extension that shows the Thomann price next to products on the page you are looking at. It is **off by default**. The toolbar button cycles through four states: **ON** (light green — this page only; a new page load turns it off), **KEEP** (green — stays on across reloads and links within the same site in that tab; Firefox asks once for access to that site, dropped again when you turn it off or leave the site), **ALWAYS** (dark green — every tab and every site until you turn it off, even after a browser restart; Firefox asks once for access to all sites), then **OFF**.
 
 Supported sites with dedicated adapters: leboncoin.fr, ricardo.ch, anibis.ch. Any other page falls back to a generic adapter (JSON-LD product pages, or a card heuristic), plus a right-click "Search on Thomann" item for selected text.
+
+**Extra pills (options, on by default):** `yt ↗` searches YouTube for the product name; `mg ✓` links straight to the ModularGrid module page when the ModularGrid search has exactly one hit, `mg 9` to the search page otherwise (grey when nothing matches). On Thomann pages a green dot appears in front of a product name when at least one marketplace has a listing, and marketplace pills with no listing are greyed out; leboncoin listings marked "Achat en cours" are ignored (option).
 
 **Reverse mode:** enable it on a Thomann page (search results, category list or product page) and each product gets one pill per marketplace — `lbc 3 · from 50 EUR`, `ric 1 · from 40 CHF`, `ani 0 ↗` — showing how many second-hand listings match and the cheapest one. Hover for the listings (title, price, place, age) with links and a **hide** button for false positives. Firefox asks once for access to the marketplaces when you first enable it on a Thomann page.
 

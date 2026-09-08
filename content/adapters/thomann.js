@@ -16,17 +16,22 @@
     if (!title || !id) return null;
     const priceEl = el.querySelector('.product__price-primary, .fx-price-group__primary') || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null; // empty until Thomann's JS fills it
-    return { key: 'tho:' + id, title, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || el.querySelector('.product__title') || el };
+    const titleEl = el.querySelector('.product__title') || null;
+    return { key: 'tho:' + id, title, titleEl, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || titleEl || el };
   }
 
   function fromProductPage() {
     const h1 = document.querySelector('h1');
     if (!h1) return [];
     const title = h1.textContent.replace(/\s+/g, ' ').trim();
-    const priceEl = document.querySelector('.price-and-availability .fx-price-group__primary, .fx-price-group__primary') || null;
+    // Thomann renders the price several times (a hidden meta block, the visible details block,
+    // and recommendation boxes further down): take the first visible one outside product boxes.
+    const candidates = [...document.querySelectorAll('.details__price .fx-price-group__primary, .price-and-availability .fx-price-group__primary, .fx-price-group__primary')]
+      .filter((el) => !el.closest('.fx-product-box, .fx-product-list-entry, .js-product'));
+    const priceEl = candidates.find((el) => U.isVisible(el) && (!el.ownerDocument.defaultView || el.ownerDocument.defaultView.getComputedStyle(el).visibility !== 'hidden')) || candidates[0] || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null;
     const key = 'tho:' + location.pathname.replace(/\.htm.*$/, '');
-    return [{ key, title, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || h1 }];
+    return [{ key, title, titleEl: h1, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || h1 }];
   }
 
   globalThis.__thcAdapters.push({
@@ -36,7 +41,7 @@
     findProducts(root) {
       const entries = [...(root || document).querySelectorAll('.fx-product-list-entry')];
       if (entries.length) return entries.map(fromEntry).filter(Boolean);
-      if (/\.htm(\?|$)/.test(location.pathname + location.search) && document.querySelector('.price-and-availability, .fx-price-group__primary')) return fromProductPage();
+      if (/\.htm(\?|$)/.test(location.pathname) && document.querySelector('.price-and-availability, .details__price, .fx-price-group__primary')) return fromProductPage();
       return [];
     }
   });

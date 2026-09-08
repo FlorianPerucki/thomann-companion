@@ -2,7 +2,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies', 'reverseMatchMin', 'reverseTtlHours', 'lbcCategory', 'marketLang', 'allowMarketCookies', 'marketCookieFallback'];
+const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies', 'reverseMatchMin', 'reverseTtlHours', 'lbcCategory', 'marketLang', 'allowMarketCookies', 'marketCookieFallback', 'lbcSkipInProgress', 'youtube', 'modulargrid'];
 const SOURCES = ['leboncoin', 'ricardo', 'anibis'];
 const SOURCE_ORIGIN = { leboncoin: 'https://www.leboncoin.fr/*', ricardo: 'https://www.ricardo.ch/*', anibis: 'https://www.anibis.ch/*' };
 let defaults = {};
@@ -52,6 +52,12 @@ function read() {
 
 async function refreshMarketPermissions() {
   const { perms } = await browser.runtime.sendMessage({ type: 'marketPermissions' });
+  try {
+    const mg = await browser.permissions.contains({ origins: ['https://modulargrid.com/*'] });
+    $('perm-modulargrid').textContent = mg ? '✓ access granted' : 'no access yet';
+    $('perm-modulargrid').className = mg ? 'ok' : 'warn';
+    $('grantMg').hidden = mg || !$('modulargrid').checked;
+  } catch (e) { /* ignore */ }
   let missing = false;
   for (const src of SOURCES) {
     const ok = perms[src];
@@ -115,6 +121,14 @@ $('grantMarkets').addEventListener('click', async () => {
   refreshMarketPermissions();
 });
 for (const src of SOURCES) $('src-' + src).addEventListener('change', refreshMarketPermissions);
+$('modulargrid').addEventListener('change', refreshMarketPermissions);
+$('grantMg').addEventListener('click', async () => {
+  try {
+    const ok = await browser.permissions.request({ origins: ['https://modulargrid.com/*'] });
+    status(ok ? 'Access granted.' : 'Access denied.', ok ? 'ok' : 'warn');
+  } catch (e) { status('Cannot request access: ' + e.message, 'warn'); }
+  refreshMarketPermissions();
+});
 $('clearHidden').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearHidden' }); status('Hidden listings cleared.', 'ok'); refreshStats(); });
 
 $('clearCache').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearCache' }); status('Cache cleared.', 'ok'); refreshStats(); });

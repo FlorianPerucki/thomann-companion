@@ -32,7 +32,21 @@
       const j = nextData(html);
       const ads = j && j.props && j.props.pageProps && j.props.pageProps.searchData && j.props.pageProps.searchData.ads;
       if (!Array.isArray(ads)) return null;
+      // "Achat en cours" (a sale is being finalized) is only visible in the rendered cards.
+      const inProgress = new Set();
+      if (typeof DOMParser !== 'undefined') {
+        try {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          for (const card of doc.querySelectorAll('article[aria-label]')) {
+            if (!/achat en cours/i.test(card.textContent)) continue;
+            const a = card.querySelector('a[href*="/ad/"]');
+            const m = a && /\/ad\/[^/]+\/(\d+)/.exec(a.getAttribute('href') || '');
+            if (m) inProgress.add(m[1]);
+          }
+        } catch (e) { /* ignore */ }
+      }
       return ads.map((a) => ({
+        unavailable: inProgress.has(String(a.list_id)),
         id: String(a.list_id),
         source: 'leboncoin',
         title: a.subject || '',
