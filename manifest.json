@@ -9,6 +9,7 @@
     "https://www.thomann.fr/*",
     "https://www.thomann.de/*"
   ],
+  "optional_host_permissions": ["*://*/*"],
   "background": {
     "scripts": [
       "background/matcher.js",
@@ -35,7 +36,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "thomann-companion@fpki.me",
-      "strict_min_version": "115.0",
+      "strict_min_version": "128.0",
       "data_collection_permissions": { "required": ["none"] }
     }
   }

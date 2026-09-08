@@ -40,12 +40,24 @@
     return code.replace(/-1$/, '');
   }
 
-  /** Alternative queries worth trying when the exact model code returns nothing: the base code. */
+  /**
+   * Alternative queries worth trying, in order, when the query returns no direct hit:
+   * Thomann ANDs every term, so "doepfer exponential vca a-131" finds nothing while
+   * "doepfer a-131" does. 1) first token + model code(s), 2) the same with the base code.
+   */
   function fallbackQueries(query) {
     const tokens = tokenize(normalizeModelCodes(query));
+    const codes = tokens.filter((t) => MODEL_CODE.test(t));
     const out = [];
-    for (const t of tokens) {
-      if (MODEL_CODE.test(t) && baseCode(t) !== t) out.push(tokens.map((x) => (x === t ? baseCode(t) : x)).join(' '));
+    const push = (q) => { if (q && q !== query && !out.includes(q)) out.push(q); };
+    if (codes.length) {
+      const brand = tokens.find((t) => !MODEL_CODE.test(t));
+      const narrow = (brand ? [brand] : []).concat(codes).join(' ');
+      push(narrow);
+      for (const c of codes) if (baseCode(c) !== c) push(narrow.replace(c, baseCode(c)));
+    }
+    for (const t of codes) {
+      if (baseCode(t) !== t) push(tokens.map((x) => (x === t ? baseCode(t) : x)).join(' '));
     }
     return out;
   }
@@ -149,6 +161,7 @@
     }
     if (c.inStock) score += 0.03;
     if (c.archived) score -= 0.5;
+    if (c.alternative) score -= 0.02; // direct hits win ties against "similar search" results
 
     return Math.max(0, Math.round(score * 1000) / 1000);
   }

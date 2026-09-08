@@ -19,7 +19,7 @@ const CACHE_KEY = 'cache';
 const OVERRIDES_KEY = 'overrides';
 const CACHE_MAX_ENTRIES = 600;
 
-const enabledTabs = new Set();
+const enabledTabs = new Map(); // tabId -> { mode: 'page' | 'keep', origin? }
 
 // ---------- settings ----------
 async function getSettings() {
@@ -90,14 +90,21 @@ async function lookup(msg) {
   });
   if (res.error || !res.candidates) return { status: 'error', query, searchUrl, error: res.error || 'no data', ranked: [] };
 
-  let candidates = res.candidates.slice();
-  // Thomann's search excludes "A-140" when asked for "a-140-1": retry with the base code and merge.
-  if (!ThomannMatcher.hasCodeMatch(query, candidates)) {
+  let candidates = res.candidates.map((c) => Object.assign({}, c));
+  // Thomann ANDs all terms and excludes "A-140" when asked for "a-140-1": when there is no direct
+  // hit carrying the model code, retry with narrower queries and merge the results.
+  const hasDirect = (list) => list.some((c) => !c.alternative) && ThomannMatcher.hasCodeMatch(query, list.filter((c) => !c.alternative));
+  if (!hasDirect(candidates)) {
     for (const fq of ThomannMatcher.fallbackQueries(query)) {
       const extraRes = await client.search(domain, fq, { ttlMs: settings.ttlHours * 3600 * 1000, allowCookies: settings.allowCookies, force: !!msg.force, priority: msg.priority || 0 });
       if (!extraRes.candidates) continue;
-      const seen = new Set(candidates.map((c) => c.id));
-      for (const c of extraRes.candidates) if (!seen.has(c.id)) { candidates.push(c); seen.add(c.id); }
+      const seen = new Map(candidates.map((c) => [c.id, c]));
+      for (const c of extraRes.candidates) {
+        const prev = seen.get(c.id);
+        if (!prev) { candidates.push(c); seen.set(c.id, c); }
+        else if (prev.alternative && !c.alternative) prev.alternative = false; // upgraded to a direct hit
+      }
+      if (hasDirect(candidates)) break;
     }
   }
   if (settings.hideBstock) candidates = candidates.filter((c) => !c.bstock);
@@ -116,6 +123,7 @@ async function lookup(msg) {
     searchUrl,
     best: pick.best,
     ranked: pick.ranked.slice(0, 5),
+    candidateCount: pick.ranked.length,
     overridden: !!pick.overridden,
     fromCache: res.fromCache,
     ts: res.ts,
@@ -134,11 +142,31 @@ const CONTENT_FILES = [
   'content/content.js'
 ];
 
-async function setBadge(tabId, on) {
-  await browser.action.setBadgeText({ tabId, text: on ? 'ON' : '' });
-  if (on) await browser.action.setBadgeBackgroundColor({ tabId, color: '#2e7d32' });
-  await browser.action.setTitle({ tabId, title: on ? 'Thomann prices: ON (click to disable)' : 'Thomann prices: click to enable on this page' });
-  try { await browser.action.setIcon({ tabId, path: on ? 'icons/on.svg' : 'icons/off.svg' }); } catch (e) { /* ignore */ }
+// Tab state: absent = OFF, { mode: 'page' } = ON for this page only (activeTab),
+// { mode: 'keep', origin } = KEEP ON: survives reloads and same-tab navigations within the
+// same site, backed by a host permission for that origin that is granted on the click and
+// removed again when the user turns it off.
+const BADGE = {
+  off: { text: '', color: '#2e7d32', title: 'Thomann prices: click to enable on this page', icon: 'icons/off.svg' },
+  page: { text: 'ON', color: '#2e7d32', title: 'Thomann prices: ON for this page (click again to keep it on across pages, twice to turn off)', icon: 'icons/on.svg' },
+  keep: { text: 'KEEP', color: '#1565c0', title: 'Thomann prices: KEPT ON for this site in this tab (click to turn off)', icon: 'icons/on.svg' }
+};
+
+async function setBadge(tabId, mode) {
+  const b = BADGE[mode] || BADGE.off;
+  await browser.action.setBadgeText({ tabId, text: b.text });
+  await browser.action.setBadgeBackgroundColor({ tabId, color: b.color });
+  await browser.action.setTitle({ tabId, title: b.title });
+  try { await browser.action.setIcon({ tabId, path: b.icon }); } catch (e) { /* ignore */ }
+}
+
+function originPatternFor(url) {
+  try { const u = new URL(url); return u.protocol + '//' + u.host + '/*'; } catch (e) { return null; }
+}
+
+async function inject(tabId) {
+  await browser.scripting.executeScript({ target: { tabId }, files: CONTENT_FILES });
+  await browser.tabs.sendMessage(tabId, { type: 'enable' }).catch(() => {});
 }
 
 async function enableOnTab(tabId) {
@@ -147,37 +175,74 @@ async function enableOnTab(tabId) {
   if (!(await hasHostPermission(settings.domain))) {
     try { await browser.permissions.request({ origins: [originFor(settings.domain)] }); } catch (e) { /* ignore */ }
   }
-  await browser.scripting.executeScript({ target: { tabId }, files: CONTENT_FILES });
-  await browser.tabs.sendMessage(tabId, { type: 'enable' }).catch(() => {});
-  enabledTabs.add(tabId);
-  await setBadge(tabId, true);
+  await inject(tabId);
+  enabledTabs.set(tabId, { mode: 'page' });
+  await setBadge(tabId, 'page');
+}
+
+async function keepOnTab(tabId, url) {
+  const origin = originPatternFor(url);
+  if (!origin) return false;
+  let granted = false;
+  try { granted = await browser.permissions.request({ origins: [origin] }); } catch (e) { granted = false; }
+  if (!granted) return false;
+  enabledTabs.set(tabId, { mode: 'keep', origin });
+  await setBadge(tabId, 'keep');
+  return true;
 }
 
 async function disableOnTab(tabId) {
+  const state = enabledTabs.get(tabId);
   enabledTabs.delete(tabId);
   await browser.tabs.sendMessage(tabId, { type: 'disable' }).catch(() => {});
-  await setBadge(tabId, false);
+  await setBadge(tabId, 'off');
+  if (state && state.mode === 'keep' && state.origin) {
+    // Give the site-wide access back unless another tab still keeps the same origin.
+    const stillUsed = [...enabledTabs.values()].some((s) => s.mode === 'keep' && s.origin === state.origin);
+    if (!stillUsed) { try { await browser.permissions.remove({ origins: [state.origin] }); } catch (e) { /* ignore */ } }
+  }
 }
 
-browser.action.onClicked.addListener(async (tab) => {
+browser.action.onClicked.addListener((tab) => {
   if (!tab || tab.id == null) return;
   if (!/^https?:/.test(tab.url || '')) return;
-  try {
-    if (enabledTabs.has(tab.id)) await disableOnTab(tab.id);
-    else await enableOnTab(tab.id);
-  } catch (e) {
-    console.error('[thomann-companion] toggle failed', e);
-  }
+  const state = enabledTabs.get(tab.id);
+  // No await before permissions.request: it must run inside the click's user-gesture context.
+  let p;
+  if (!state) p = enableOnTab(tab.id);
+  else if (state.mode === 'page') p = keepOnTab(tab.id, tab.url).then((ok) => { if (!ok) return disableOnTab(tab.id); });
+  else p = disableOnTab(tab.id);
+  p.catch((e) => console.error('[thomann-companion] toggle failed', e));
 });
 
 browser.tabs.onRemoved.addListener((tabId) => enabledTabs.delete(tabId));
 
-// A real navigation (not pushState) ends the per-page enablement.
+// A real navigation (not pushState): page mode ends; keep mode re-injects when the origin still
+// matches, and ends when the tab leaves the site.
 browser.webNavigation.onCommitted.addListener((details) => {
   if (details.frameId !== 0) return;
-  if (enabledTabs.has(details.tabId)) {
+  const state = enabledTabs.get(details.tabId);
+  if (!state) return;
+  if (state.mode === 'keep' && originPatternFor(details.url) === state.origin) return;
+  enabledTabs.delete(details.tabId);
+  setBadge(details.tabId, 'off').catch(() => {});
+  if (state.mode === 'keep' && state.origin) {
+    const stillUsed = [...enabledTabs.values()].some((s) => s.mode === 'keep' && s.origin === state.origin);
+    if (!stillUsed) browser.permissions.remove({ origins: [state.origin] }).catch(() => {});
+  }
+});
+
+browser.webNavigation.onDOMContentLoaded.addListener(async (details) => {
+  if (details.frameId !== 0) return;
+  const state = enabledTabs.get(details.tabId);
+  if (!state || state.mode !== 'keep') return;
+  try {
+    await inject(details.tabId);
+    await setBadge(details.tabId, 'keep');
+  } catch (e) {
+    console.warn('[thomann-companion] re-inject failed', e);
     enabledTabs.delete(details.tabId);
-    setBadge(details.tabId, false).catch(() => {});
+    setBadge(details.tabId, 'off').catch(() => {});
   }
 });
 
@@ -215,8 +280,10 @@ browser.runtime.onMessage.addListener((msg, sender) => {
       return Promise.all([cacheStore.size(), getOverrides()]).then(([n, o]) => ({ cacheEntries: n, overrides: Object.keys(o).length }));
     case 'hasPermission':
       return hasHostPermission(msg.domain).then((ok) => ({ ok }));
-    case 'isEnabled':
-      return Promise.resolve({ enabled: sender && sender.tab ? enabledTabs.has(sender.tab.id) : false });
+    case 'isEnabled': {
+      const st = sender && sender.tab ? enabledTabs.get(sender.tab.id) : null;
+      return Promise.resolve({ enabled: !!st, mode: st ? st.mode : 'off' });
+    }
     case 'openTab':
       return browser.tabs.create({ url: msg.url, active: msg.active !== false }).then(() => ({ ok: true }));
     default:

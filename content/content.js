@@ -21,6 +21,8 @@
     .b.uncertain { border-color: #ef6c00; color: #b45309; background: #fff7ed; }
     .b.none, .b.error, .b.noPermission { border-color: #bbb; color: #555; background: #fafafa; }
     .b.error { border-color: #d32f2f; color: #b71c1c; }
+    .b.alt { border-style: dashed; }
+    .b.none.has { border-style: dashed; color: #333; border-color: #888; }
     .logo { font-weight: 800; letter-spacing: -.02em; color: #0aa; }
     .tag { font-size: 10px; padding: 0 4px; border-radius: 4px; background: #eee; color: #333; }
   `;
@@ -108,8 +110,9 @@
       const tags = [];
       if (b.bstock) tags.push('B');
       if (!b.inStock) tags.push('⏳');
+      if (b.alternative) { tags.push('similar'); a.classList.add('alt'); }
       label((r.status === 'uncertain' ? '≈ ' : '') + fmtPrice(b.price, b.currency) + (r.status === 'uncertain' ? '?' : ''), tags);
-      a.title = b.name + (b.availabilityText ? ' · ' + b.availabilityText : '') + (r.fromCache ? ' · cached ' + new Date(r.ts).toLocaleString() : '') + (r.overridden ? ' · manual match' : '');
+      a.title = b.name + (b.alternative ? ' (from "similar searches", not a direct hit)' : '') + (b.availabilityText ? ' · ' + b.availabilityText : '') + (r.fromCache ? ' · cached ' + new Date(r.ts).toLocaleString() : '') + (r.overridden ? ' · manual match' : '');
     } else if (r.status === 'noPermission') {
       a.href = r.searchUrl;
       label('grant access');
@@ -120,8 +123,10 @@
       a.title = 'Lookup failed: ' + (r.error || 'unknown') + ' — click to search on Thomann';
     } else {
       a.href = r.searchUrl || '#';
-      label('no match ↗');
-      a.title = 'No confident match — click to search on Thomann';
+      const n = r.candidateCount || 0;
+      if (n > 0) { a.classList.add('has'); label('no match ↗', [n + ' similar']); }
+      else label('no match ↗');
+      a.title = n > 0 ? 'No confident match, but ' + n + ' candidate(s) in the tooltip — click to search on Thomann' : 'No confident match — click to search on Thomann';
     }
     a.addEventListener('click', (e) => e.stopPropagation());
     shadow.appendChild(a);
@@ -192,7 +197,8 @@
       row.className = 'row';
       const n = document.createElement('a');
       n.className = 'n'; n.href = c.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
-      n.textContent = c.name + (c.bstock ? ' (B-stock)' : '');
+      n.textContent = c.name + (c.bstock ? ' (B-stock)' : '') + (c.alternative ? ' ~' : '');
+      if (c.alternative) n.title = c.name + ' — from "similar searches"';
       n.title = c.name;
       const price = document.createElement('span');
       price.className = 'p'; price.textContent = fmtPrice(c.price, c.currency);

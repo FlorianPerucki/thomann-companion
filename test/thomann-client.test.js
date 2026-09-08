@@ -18,7 +18,7 @@ function htmlResponse(html, status = 200, url = '') {
 test('parseSearchPayload maps articles to candidates', () => {
   const c = parseSearchPayload(fixture, 'www.thomannmusic.ch');
   assert.equal(c.length, 8);
-  assert.deepEqual(Object.keys(c[0]).sort(), ['archived', 'availabilityText', 'bstock', 'currency', 'id', 'internalId', 'aStockId', 'image', 'inStock', 'manufacturer', 'model', 'name', 'price', 'url'].sort());
+  assert.deepEqual(Object.keys(c[0]).sort(), ['archived', 'availabilityText', 'bstock', 'currency', 'id', 'internalId', 'aStockId', 'image', 'inStock', 'manufacturer', 'model', 'name', 'price', 'url', 'alternative'].sort());
   assert.equal(c[0].price, 127);
   assert.equal(c[0].currency, 'CHF');
   assert.equal(c[0].url, 'https://www.thomannmusic.ch/doepfer_a_110_4_thru_zero_quad_vco_se.htm');
@@ -89,4 +89,18 @@ test('client de-duplicates in-flight lookups', async () => {
 
 test('searchUrl encodes the query', () => {
   assert.equal(searchUrl('www.thomann.fr', 'make noise maths', false), 'https://www.thomann.fr/search_dir.html?sw=make%20noise%20maths');
+});
+
+test('alternativeArticles ("similar searches") are returned as flagged candidates', () => {
+  const payload = {
+    articleListsSettings: {
+      articles: [],
+      alternativeArticles: [{ id: 51096, number: '166483', relativeLink: 'doepfer_a131.htm?type=quickSearch', manufacturer: 'Doepfer', model: 'A-131', price: { primary: { rawPrice: '68.0000', currency: { key: 'CHF' } } }, availability: { isAvailable: true } }],
+      resultCount: 0
+    }
+  };
+  const c = parseSearchPayload(payload, 'www.thomannmusic.ch');
+  assert.equal(c.length, 1);
+  assert.equal(c[0].alternative, true);
+  assert.equal(c[0].url, 'https://www.thomannmusic.ch/doepfer_a131.htm');
 });

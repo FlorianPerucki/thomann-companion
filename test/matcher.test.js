@@ -72,3 +72,17 @@ test('"a-140-1" matches Thomann\'s "A-140" (base model) and proposes a fallback 
   assert.equal(r.best.model, 'A-140');
   assert.equal(M.pickBest('doepfer a-140-2', real).best.model, 'A-140-2');
 });
+
+test('fallback queries narrow to brand + model code (Thomann ANDs all terms)', () => {
+  assert.deepEqual(M.fallbackQueries('doepfer exponential vca a-131'), ['doepfer a-131']);
+  assert.deepEqual(M.fallbackQueries('doepfer exponential vca a-140-1'), ['doepfer a-140-1', 'doepfer a-140', 'doepfer exponential vca a-140']);
+  assert.deepEqual(M.fallbackQueries('make noise maths'), []);
+});
+
+test('a direct hit wins a tie against an alternative of the same product', () => {
+  const alt = { manufacturer: 'Doepfer', model: 'A-131', price: 68, inStock: true, alternative: true, id: '1' };
+  const direct = { manufacturer: 'Doepfer', model: 'A-131', price: 68, inStock: true, alternative: false, id: '2' };
+  const r = M.pickBest('doepfer a-131', [alt, direct]);
+  assert.equal(r.best.id, '2');
+  assert.equal(M.pickBest('doepfer a-131', [alt]).status, 'match');
+});

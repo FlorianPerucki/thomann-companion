@@ -37,7 +37,7 @@
     try { return JSON.parse(html.slice(start, i)); } catch (e) { return null; }
   }
 
-  function toCandidate(a, domain) {
+  function toCandidate(a, domain, alternative) {
     const p = a.price && a.price.primary ? a.price.primary : null;
     const av = a.availability || {};
     const link = String(a.relativeLink || (a.fileName ? a.fileName + '.htm' : '')).split('?')[0];
@@ -55,16 +55,29 @@
       availabilityText: av.textShort || av.label || '',
       bstock: !!a.isBstock,
       archived: !!a.isArchived,
-      image: a.mainImage && (a.mainImage.url || a.mainImage.src) || null
+      image: a.mainImage && (a.mainImage.url || a.mainImage.src) || null,
+      alternative: !!alternative // from "results for similar searches", not a direct hit
     };
   }
 
   /** Accepts either the ajax JSON object or the bootstrap array wrapping it. */
   function parseSearchPayload(payload, domain) {
     const obj = Array.isArray(payload) ? payload[0] : payload;
-    const list = obj && obj.articleListsSettings && obj.articleListsSettings.articles;
+    const als = obj && obj.articleListsSettings;
+    const list = als && als.articles;
     if (!Array.isArray(list)) return null;
-    return list.map((a) => toCandidate(a, domain)).filter((c) => c.price != null && !c.archived);
+    const alt = Array.isArray(als.alternativeArticles) ? als.alternativeArticles : [];
+    const seen = new Set();
+    const out = [];
+    for (const [arr, isAlt] of [[list, false], [alt, true]]) {
+      for (const a of arr) {
+        const c = toCandidate(a, domain, isAlt);
+        if (c.price == null || c.archived || seen.has(c.id)) continue;
+        seen.add(c.id);
+        out.push(c);
+      }
+    }
+    return out;
   }
 
   /** Single-hit searches may land on a product page: read its JSON-LD Product. */
@@ -97,7 +110,8 @@
           availabilityText: '',
           bstock: false,
           archived: false,
-          image: Array.isArray(n.image) ? n.image[0] : (n.image || null)
+          image: Array.isArray(n.image) ? n.image[0] : (n.image || null),
+          alternative: false
         }];
       }
     }

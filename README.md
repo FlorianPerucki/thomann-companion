@@ -1,6 +1,6 @@
 # Thomann Price Companion
 
-Firefox extension that shows the Thomann price next to products on the page you are looking at. It is **off by default**: click the toolbar button to enable it on the current tab, click again to disable. A real navigation (new page load) turns it off again.
+Firefox extension that shows the Thomann price next to products on the page you are looking at. It is **off by default**. The toolbar button cycles through three states per tab: **ON** (this page only; a new page load turns it off), **KEEP** (stays on across reloads and links within the same site in that tab — Firefox asks once for access to that site, and the access is dropped again when you turn it off or leave the site), then **OFF**.
 
 Supported sites with dedicated adapters: leboncoin.fr, ricardo.ch, anibis.ch. Any other page falls back to a generic adapter (JSON-LD product pages, or a card heuristic), plus a right-click "Search on Thomann" item for selected text.
 
