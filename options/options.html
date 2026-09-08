@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Thomann Price Companion — options</title>
+  <style>
+    body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #222; margin: 0; padding: 12px 16px; min-width: 420px; }
+    h1 { font-size: 15px; margin: 0 0 10px; }
+    h2 { font-size: 13px; margin: 18px 0 6px; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #f0f0f0; }
+    label span small { display: block; color: #777; font-weight: 400; }
+    input[type=number] { width: 80px; }
+    input[type=text], select { min-width: 200px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+    button { font: inherit; padding: 4px 10px; }
+    .ok { color: #2e7d32; } .warn { color: #b45309; }
+    #status { margin-top: 10px; color: #555; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <h1>Thomann Price Companion</h1>
+
+  <h2>Shop</h2>
+  <label><span>Thomann shop<small>Prices and links come from this domain.</small></span>
+    <select id="domain"></select></label>
+  <label><span>Custom domain<small>Overrides the dropdown when filled, e.g. www.thomann.de</small></span>
+    <input type="text" id="customDomain" placeholder="www.thomann…"></label>
+  <div class="row"><span id="perm"></span><button id="grant">Grant access to this shop</button></div>
+
+  <h2>Matching</h2>
+  <label><span>Hide B-stock offers<small>B-stock never becomes the main price; still listed on hover if off.</small></span>
+    <input type="checkbox" id="hideBstock"></label>
+  <label><span>Extra stop words<small>Comma separated words to ignore in listing titles.</small></span>
+    <input type="text" id="extraStopWords" placeholder="e.g. vintage, promo"></label>
+  <label><span>Confident match threshold<small>0–1. Lower = more confident badges, more mistakes.</small></span>
+    <input type="number" id="matchMin" min="0" max="1" step="0.05"></label>
+  <label><span>EUR → CHF rate for the "cheaper on Thomann" highlight<small>0 disables cross-currency comparison.</small></span>
+    <input type="number" id="eurChfRate" min="0" step="0.001"></label>
+
+  <h2>Requests &amp; cache</h2>
+  <label><span>Cache lifetime (hours)<small>0 disables caching.</small></span>
+    <input type="number" id="ttlHours" min="0" step="1"></label>
+  <label><span>Parallel requests</span><input type="number" id="concurrency" min="1" max="4" step="1"></label>
+  <label><span>Minimum spacing between requests (ms)</span><input type="number" id="spacingMs" min="0" step="50"></label>
+  <label><span>Send cookies to Thomann<small>Off by default: requests are anonymous. Turn on only if lookups get blocked.</small></span>
+    <input type="checkbox" id="allowCookies"></label>
+  <div class="row">
+    <button id="clearCache">Clear cache</button>
+    <button id="clearOverrides">Clear manual matches</button>
+    <span id="stats"></span>
+  </div>
+
+  <div class="row"><button id="save">Save</button><button id="reset">Reset to defaults</button></div>
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

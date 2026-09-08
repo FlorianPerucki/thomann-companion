@@ -1,0 +1,60 @@
+{
+  "headline": "doepfer a-110",
+  "searchWord": "doepfer a-110",
+  "searchAjaxLink": "search_searchAjax.html",
+  "articleListsSettings": {
+    "articles": [
+      {
+        "id": 272598, "number": "372340", "fileName": "doepfer_a_110_4_thru_zero_quad_vco_se", "relativeLink": "doepfer_a_110_4_thru_zero_quad_vco_se.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-110-4 Thru Zero Quad VCO SE",
+        "price": { "primary": { "rawPrice": "127.0000", "vatRate": "8.1000", "includesVat": true, "currency": { "id": 40, "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "code": 1, "isAvailable": true, "label": "IN_STOCK", "textShort": "Sofort lieferbar", "token": "in-stock" },
+        "isBstock": false, "isArchived": false
+      },
+      {
+        "id": 314460, "number": "414041", "fileName": "doepfer_a_110_6", "relativeLink": "doepfer_a_110_6.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-110-6",
+        "price": { "primary": { "rawPrice": "227.0000", "currency": { "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "isAvailable": true, "textShort": "Sofort lieferbar", "token": "in-stock" },
+        "isBstock": false, "isArchived": false
+      },
+      {
+        "id": 255111, "number": "354853", "fileName": "doepfer_a_110_2", "relativeLink": "doepfer_a_110_2.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-110-2",
+        "price": { "primary": { "rawPrice": "159.0000", "currency": { "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "isAvailable": true, "textShort": "Sofort lieferbar", "token": "in-stock" },
+        "isBstock": false, "isArchived": false
+      },
+      {
+        "id": 100001, "number": "200001", "fileName": "doepfer_a_110_1", "relativeLink": "doepfer_a_110_1.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-110-1",
+        "price": { "primary": { "rawPrice": "118.0000", "currency": { "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "isAvailable": false, "textShort": "In 2-3 Wochen lieferbar", "token": "short-term" },
+        "isBstock": false, "isArchived": false
+      },
+      {
+        "id": 100002, "number": "200002", "fileName": "doepfer_a_110_1_vintage_edition", "relativeLink": "doepfer_a_110_1_vintage_edition.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-110-1 Vintage Edition",
+        "price": { "primary": { "rawPrice": "125.0000", "currency": { "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "isAvailable": true, "textShort": "Sofort lieferbar", "token": "in-stock" },
+        "isBstock": false, "isArchived": false
+      },
+      {
+        "id": 100003, "number": "200003", "fileName": "doepfer_a_110_4_thru_zero_quad_b_stock", "relativeLink": "doepfer_a_110_4_thru_zero_quad_b_stock.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-110-4 Thru Zero Quad B-Stock",
+        "price": { "primary": { "rawPrice": "99.0000", "currency": { "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "isAvailable": true, "textShort": "Sofort lieferbar", "token": "in-stock" },
+        "isBstock": true, "isArchived": false
+      },
+      {
+        "id": 100004, "number": "200004", "fileName": "doepfer_a_100bs2_p9_psu3", "relativeLink": "doepfer_a_100bs2_p9_psu3.htm?type=quickSearch",
+        "manufacturer": "Doepfer", "model": "A-100BS2-P9 PSU3",
+        "price": { "primary": { "rawPrice": "1290.0000", "currency": { "key": "CHF", "symbol": "CHF" } } },
+        "availability": { "isAvailable": true, "textShort": "Sofort lieferbar", "token": "in-stock" },
+        "isBstock": false, "isArchived": false
+      }
+    ]
+  },
+  "pagingSettings": { "page": 1, "pageCount": 1 },
+  "spellCheckSettings": { "label": null, "link": null, "suggestionLinks": null, "forceSearchWord": null, "provider": "solr_10" }
+}

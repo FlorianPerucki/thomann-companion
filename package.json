@@ -1,0 +1,16 @@
+{
+  "name": "thomann-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firefox extension showing Thomann prices next to products on the current page.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "start": "web-ext run --source-dir . --start-url https://www.leboncoin.fr/recherche?text=doepfer",
+    "lint": "web-ext lint --source-dir .",
+    "build": "web-ext build --source-dir . --overwrite-dest"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1",
+    "web-ext": "^8.0.0"
+  }
+}

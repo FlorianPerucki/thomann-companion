@@ -1,0 +1,149 @@
+/*
+ * Query cleaning and candidate scoring. Pure functions, no browser APIs,
+ * so this file is shared between the background script and the unit tests.
+ */
+(function (root) {
+  'use strict';
+
+  // Words that carry no product information in second-hand listing titles.
+  const DEFAULT_STOP_WORDS = [
+    // French
+    'neuf', 'neuve', 'occasion', 'tbe', 'be', 'très', 'tres', 'bon', 'bonne', 'état', 'etat', 'comme',
+    'vends', 'vend', 'vente', 'lot', 'avec', 'sans', 'garantie', 'boîte', 'boite', 'facture',
+    'origine', 'complet', 'complète', 'rare', 'prix', 'urgent', 'pour', 'pièces', 'pieces',
+    'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'ou', 'en', 'à', 'a',
+    // English
+    'new', 'used', 'mint', 'condition', 'like', 'with', 'without', 'the', 'and', 'or', 'for',
+    'box', 'boxed', 'original', 'rare', 'sale', 'selling', 'excellent',
+    // German
+    'neu', 'gebraucht', 'wie', 'mit', 'ohne', 'und', 'oder', 'für', 'fuer', 'top', 'zustand',
+    'verkaufe', 'ovp', 'rechnung', 'garantie', 'der', 'die', 'das', 'im', 'inkl',
+    // Domain noise
+    'eurorack', 'euro', 'rack', 'module', 'modul', 'modules', 'modular', 'modulaire', 'synth',
+    'synthé', 'synthe', 'synthesizer', 'synthétiseur', 'synthetiseur', 'analog', 'analogue',
+    'analogique', 'hp', 'te', 'u', 'x', '+', '-', '&'
+  ];
+
+  // Qualifiers that make a Thomann candidate a *different* product unless the
+  // query mentions them too.
+  const QUALIFIERS = [
+    'vintage', 'edition', 'se', 'b-stock', 'bstock', 'set', 'bundle', 'case', 'bag', 'stand',
+    'cover', 'cable', 'kabel', 'câble', 'psu', 'netzteil', 'power', 'supply', 'kit', 'pack',
+    'bracket', 'adapter', 'adaptor', 'mk2', 'mkii', 'mk3', 'mkiii', 'v2', 'v3', 'ii', 'iii',
+    'black', 'white', 'silver', 'red', 'blue'
+  ];
+
+  const MODEL_CODE = /^[a-z]{1,4}-\d{2,5}(?:-\d{1,3})?[a-z]?$/;
+
+  // "A 110", "a110", "A-110-1", "a 110 1" -> "a-110", "a-110-1".
+  function normalizeModelCodes(str) {
+    return str
+      .replace(/\b([a-z]{1,4})[\s\-_]?(\d{2,5})(?:[\s\-_](\d{1,3}))?(?=\b|[a-z]\b)/gi, (m, l, d, s) => {
+        const tail = s ? '-' + s : '';
+        return l.toLowerCase() + '-' + d + tail;
+      });
+  }
+
+  function tokenize(str) {
+    return String(str || '')
+      .toLowerCase()
+      .replace(/[()\[\]{}«»"“”'’`´,;:!?*#|]/g, ' ')
+      .replace(/\.(?=\s|$)/g, ' ')
+      .split(/\s+/)
+      .map((t) => t.replace(/^[-_/.]+|[-_/.]+$/g, ''))
+      .filter(Boolean);
+  }
+
+  function stripParentheses(str) {
+    return String(str || '').replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, ' ');
+  }
+
+  /**
+   * Turn a noisy listing title into a compact search query.
+   * @param {string} title
+   * @param {object} [opts]
+   * @param {string[]} [opts.extraStopWords]
+   * @param {number} [opts.maxTokens]
+   * @returns {string}
+   */
+  function cleanQuery(title, opts) {
+    opts = opts || {};
+    const stop = new Set(DEFAULT_STOP_WORDS.concat(opts.extraStopWords || []).map((w) => w.toLowerCase()));
+    const normalized = normalizeModelCodes(stripParentheses(title));
+    const tokens = tokenize(normalized).filter((t) => !stop.has(t));
+    // Model codes first so the search engine weighs them; keep original order otherwise.
+    const codes = tokens.filter((t) => MODEL_CODE.test(t));
+    const rest = tokens.filter((t) => !MODEL_CODE.test(t));
+    const out = [];
+    for (const t of rest.concat(codes)) if (!out.includes(t)) out.push(t);
+    return out.slice(0, opts.maxTokens || 8).join(' ');
+  }
+
+  function candidateTokens(c) {
+    return new Set(tokenize(normalizeModelCodes((c.manufacturer || '') + ' ' + (c.model || ''))));
+  }
+
+  /**
+   * Score how well a Thomann candidate matches a cleaned query. Higher is better.
+   * Roughly: 1.0 = the query names exactly this product.
+   */
+  function scoreCandidate(query, c) {
+    const q = new Set(tokenize(normalizeModelCodes(query)));
+    const ct = candidateTokens(c);
+    if (!q.size || !ct.size) return 0;
+
+    let inter = 0;
+    for (const t of q) if (ct.has(t)) inter++;
+    const union = new Set([...q, ...ct]).size;
+    const jaccard = inter / union;
+    const coverage = inter / q.size;
+
+    let score = 0.5 * jaccard + 0.5 * coverage;
+
+    const qCodes = [...q].filter((t) => MODEL_CODE.test(t));
+    const cCodes = [...ct].filter((t) => MODEL_CODE.test(t));
+    if (qCodes.length) {
+      const exact = qCodes.some((t) => ct.has(t));
+      if (exact) score += 0.45;
+      else {
+        // Prefix match ("a-110" vs "a-110-1") is worth something, a different code is not.
+        const prefix = qCodes.some((qc) => cCodes.some((cc) => cc.startsWith(qc + '-') || qc.startsWith(cc + '-')));
+        score += prefix ? 0.15 : -0.4;
+      }
+    }
+
+    for (const t of ct) {
+      if (QUALIFIERS.includes(t) && !q.has(t)) score -= 0.15;
+    }
+    if (c.bstock) score -= 0.3;
+    if (c.inStock) score += 0.03;
+    if (c.archived) score -= 0.5;
+
+    return Math.max(0, Math.round(score * 1000) / 1000);
+  }
+
+  /**
+   * @returns {{status: 'match'|'uncertain'|'none', best: object|null, ranked: object[]}}
+   */
+  function pickBest(query, candidates, opts) {
+    opts = opts || {};
+    const matchMin = opts.matchMin ?? 0.6;
+    const margin = opts.margin ?? 0.12;
+    const uncertainMin = opts.uncertainMin ?? 0.3;
+
+    const ranked = (candidates || [])
+      .map((c) => Object.assign({}, c, { score: scoreCandidate(query, c) }))
+      .sort((a, b) => b.score - a.score);
+
+    if (!ranked.length) return { status: 'none', best: null, ranked };
+    const best = ranked[0];
+    const second = ranked[1] ? ranked[1].score : 0;
+    if (best.score >= matchMin && best.score - second >= margin) return { status: 'match', best, ranked };
+    if (best.score >= uncertainMin) return { status: 'uncertain', best, ranked };
+    return { status: 'none', best: null, ranked };
+  }
+
+  const api = { DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest };
+  root.ThomannMatcher = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -1,0 +1,53 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const M = require('../background/matcher.js');
+const fixture = require('./fixtures/search_doepfer_a110.json');
+const { parseSearchPayload } = require('../background/thomann-client.js');
+
+const candidates = parseSearchPayload(fixture, 'www.thomannmusic.ch');
+
+test('normalizeModelCodes unifies spellings', () => {
+  assert.equal(M.normalizeModelCodes('Doepfer A 110 VCO'), 'Doepfer a-110 VCO');
+  assert.equal(M.normalizeModelCodes('doepfer a110'), 'doepfer a-110');
+  assert.equal(M.normalizeModelCodes('Doepfer A-110-1'), 'Doepfer a-110-1');
+  assert.equal(M.normalizeModelCodes('Doepfer A 110 1'), 'Doepfer a-110-1');
+  assert.equal(M.normalizeModelCodes('PK88GH'), 'PK88GH'); // no boundary after digits
+});
+
+test('cleanQuery strips noise and keeps brand + model', () => {
+  assert.equal(M.cleanQuery('(eurorack) Doepfer a-148'), 'doepfer a-148');
+  assert.equal(M.cleanQuery('Doepfer A-140-1 TBE comme neuf'), 'doepfer a-140-1');
+  assert.equal(M.cleanQuery('Module doepfer A 110 vco'), 'doepfer vco a-110');
+  assert.equal(M.cleanQuery('Vends Make Noise Maths, très bon état'), 'make noise maths');
+  assert.equal(M.cleanQuery('Doepfer A-110-1 TBE', { extraStopWords: ['doepfer'] }), 'a-110-1');
+});
+
+test('exact model code wins over siblings', () => {
+  const r = M.pickBest('doepfer a-110-2', candidates);
+  assert.equal(r.status, 'match');
+  assert.equal(r.best.model, 'A-110-2');
+});
+
+test('plain "a-110" is uncertain among A-110-x variants', () => {
+  const r = M.pickBest('doepfer a-110', candidates);
+  assert.notEqual(r.status, 'none');
+  assert.ok(r.ranked[0].model.startsWith('A-110'));
+});
+
+test('vintage edition loses to the standard model unless asked for', () => {
+  const r = M.pickBest('doepfer a-110-1', candidates);
+  assert.equal(r.best.model, 'A-110-1');
+  const v = M.pickBest('doepfer a-110-1 vintage edition', candidates);
+  assert.equal(v.best.model, 'A-110-1 Vintage Edition');
+});
+
+test('B-stock is penalized', () => {
+  const r = M.pickBest('doepfer a-110-4 thru zero quad vco', candidates);
+  assert.equal(r.best.bstock, false);
+});
+
+test('unrelated query yields none', () => {
+  const r = M.pickBest('make noise maths', candidates);
+  assert.equal(r.status, 'none');
+});
