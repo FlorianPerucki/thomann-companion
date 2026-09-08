@@ -133,7 +133,26 @@ async function hasHostPermission(domain) {
 }
 
 // ---------- lookup ----------
+// Firefox suspends the event page after ~30 s without "activity"; long lookup queues (ricardo,
+// one request at a time) outlive that, and the pending message channels then die with
+// "Receiving end does not exist". A cheap API call every 20 s while lookups are pending resets
+// the idle timer.
+let pendingLookups = 0;
+let keepAliveTimer = null;
+function trackLookup(promise) {
+  pendingLookups++;
+  if (!keepAliveTimer) keepAliveTimer = setInterval(() => { browser.runtime.getPlatformInfo().catch(() => {}); }, 20000);
+  return promise.finally(() => {
+    pendingLookups--;
+    if (pendingLookups <= 0) { pendingLookups = 0; clearInterval(keepAliveTimer); keepAliveTimer = null; }
+  });
+}
+
 async function lookup(msg) {
+  return trackLookup(lookupInner(msg));
+}
+
+async function lookupInner(msg) {
   const settings = await getSettings();
   const source = msg.source || 'thomann';
   if (source === 'thomann') return lookupThomann(msg, settings);

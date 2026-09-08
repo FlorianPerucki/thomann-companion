@@ -437,10 +437,18 @@
     pill.requested = true;
     renderPill(entry, src, { status: 'loading' });
     let r;
-    try {
-      r = await browser.runtime.sendMessage({ type: 'lookup', source: src, title: entry.product.title, brand: entry.product.brand || '', key: entry.product.key, force: !!opts.force, priority: opts.priority || 0 });
-    } catch (e) {
-      r = { status: 'error', error: String(e && e.message || e) };
+    const msg = { type: 'lookup', source: src, title: entry.product.title, brand: entry.product.brand || '', key: entry.product.key, force: !!opts.force, priority: opts.priority || 0 };
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        r = await browser.runtime.sendMessage(msg);
+        break;
+      } catch (e) {
+        const text = String(e && e.message || e);
+        r = { status: 'error', error: text };
+        // The background page was suspended or restarted mid-lookup: wake it up and retry.
+        if (!/Receiving end does not exist|Could not establish connection|message manager disconnected/i.test(text)) break;
+        await new Promise((res) => setTimeout(res, 800 * (attempt + 1)));
+      }
     }
     if (!r) r = { status: 'error', error: 'no response' };
     pill.result = r;
