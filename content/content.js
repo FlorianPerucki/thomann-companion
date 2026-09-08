@@ -130,12 +130,10 @@
       a.append(logo, document.createTextNode(text));
       for (const t of tags || []) { const el = document.createElement('span'); el.className = 'tag'; el.textContent = t; a.append(' ', el); }
     };
-    const name = SOURCE_NAME[src] || src;
 
     if (r.status === 'idle' || r.status === 'loading') {
       label('…');
       a.href = r.searchUrl || '#';
-      a.title = 'Looking up on ' + name + '…';
     } else if (r.status === 'match' || r.status === 'uncertain') {
       const b = r.best;
       if (r.status === 'match' && isCheaper(product, b.price, b.currency, r.eurChfRate)) a.classList.add('cheaper');
@@ -145,33 +143,26 @@
       if (!b.inStock) tags.push('⏳');
       if (b.alternative) { tags.push('similar'); a.classList.add('alt'); }
       label((r.status === 'uncertain' ? '≈ ' : '') + fmtPrice(b.price, b.currency) + (r.status === 'uncertain' ? '?' : ''), tags);
-      a.title = b.name + (b.alternative ? ' (from "similar searches", not a direct hit)' : '') + (b.availabilityText ? ' · ' + b.availabilityText : '') + (r.fromCache ? ' · cached ' + new Date(r.ts).toLocaleString() : '') + (r.overridden ? ' · manual match' : '');
     } else if (r.status === 'matches') {
       const b = r.best;
       if (isCheaper(product, b.price, b.currency, r.eurChfRate)) a.classList.add('cheaper');
       a.href = b.url;
       label(r.count + ' · from ' + fmtPrice(b.price, b.currency));
-      a.title = r.count + ' listing(s) on ' + name + ' — cheapest: ' + b.title + (b.place ? ' (' + b.place + ')' : '') + (r.fromCache ? ' · cached ' + new Date(r.ts).toLocaleString() : '');
     } else if (r.status === 'skipped') {
       a.href = r.searchUrl || '#';
       label('skipped');
-      a.title = 'Not looked up: title contains "' + r.skipWord + '" (see options) — click to search on ' + name + ' anyway';
     } else if (r.status === 'noPermission') {
       a.href = r.searchUrl || '#';
       label('grant access');
-      a.title = 'Open the extension options and grant access to ' + (r.domain || name);
     } else if (r.status === 'error') {
       a.href = r.searchUrl || '#';
       label('error ↗');
-      a.title = 'Lookup failed: ' + (r.error || 'unknown') + ' — click to search on ' + name;
     } else {
       a.href = r.searchUrl || '#';
       const n = r.candidateCount || 0;
       if (n > 0) { a.classList.add('has'); label('no match ↗', [n + ' similar']); }
       else if (src !== 'thomann') label('0 ↗');
       else label('no match ↗');
-      a.title = n > 0 ? 'No confident match, but ' + n + ' candidate(s) in the tooltip — click to search on ' + name
-        : (src === 'thomann' ? 'No confident match — click to search on Thomann' : 'No matching listing on ' + name + (r.scanned ? ' (' + r.scanned + ' scanned)' : '') + ' — click to search there');
     }
     if (overlay.entry === entry) showPanel(entry);
   }

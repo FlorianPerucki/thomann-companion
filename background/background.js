@@ -281,8 +281,8 @@ function originsNeededFor(url, settings) {
 // removed again when the user turns it off.
 const BADGE = {
   off: { text: '', color: '#2e7d32', title: 'Thomann prices: click to enable on this page', icon: 'icons/off.svg' },
-  page: { text: 'ON', color: '#2e7d32', title: 'Thomann prices: ON for this page (click again to keep it on across pages, twice to turn off)', icon: 'icons/on.svg' },
-  keep: { text: 'KEEP', color: '#1565c0', title: 'Thomann prices: KEPT ON for this site in this tab (click to turn off)', icon: 'icons/on.svg' }
+  page: { text: 'ON', color: '#66bb6a', title: 'Thomann prices: ON for this page (click again to keep it on across pages, twice to turn off)', icon: 'icons/on.svg' },
+  keep: { text: 'ON', color: '#1b5e20', title: 'Thomann prices: KEPT ON for this site in this tab (click to turn off)', icon: 'icons/on.svg' }
 };
 
 async function setBadge(tabId, mode) {
