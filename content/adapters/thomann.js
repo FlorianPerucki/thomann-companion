@@ -31,7 +31,9 @@
     const priceEl = candidates.find((el) => U.isVisible(el) && (!el.ownerDocument.defaultView || el.ownerDocument.defaultView.getComputedStyle(el).visibility !== 'hidden')) || candidates[0] || null;
     const price = priceEl ? U.parsePrice(priceEl.textContent) : null;
     const key = 'tho:' + location.pathname.replace(/\.htm.*$/, '');
-    return [{ key, title, titleEl: h1, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: priceEl || h1 }];
+    // Marketplace pills go on their own line under the price block, right-aligned.
+    const block = priceEl ? (priceEl.closest('.details__price, .price-and-availability, .fx-price-group') || priceEl) : h1;
+    return [{ key, title, titleEl: h1, priceEl, priceValue: price ? price.value : null, currency: price && price.currency || 'CHF', mount: block, mountMode: 'below-right' }];
   }
 
   globalThis.__thcAdapters.push({

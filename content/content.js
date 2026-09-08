@@ -130,7 +130,11 @@
     }
     const m = product.mount;
     if (m && m.parentNode) {
-      if (m.tagName === 'H1') m.appendChild(main.host); else m.insertAdjacentElement('afterend', main.host);
+      if (product.mountMode === 'below-right') {
+        main.host.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;margin:6px 0 0;';
+        m.insertAdjacentElement('afterend', main.host);
+      } else if (m.tagName === 'H1') m.appendChild(main.host);
+      else m.insertAdjacentElement('afterend', main.host);
     } else return null;
     if (extraTarget) product.titleEl.appendChild(extraTarget.host);
     return entry;
@@ -295,6 +299,9 @@
     img.src = image;
     box.appendChild(img);
     if (caption) box.appendChild(el('div', 'cap', caption));
+    // Left of the panel by default; on the right when the panel sits near the left edge.
+    const rect = overlay.host.getBoundingClientRect();
+    if (rect.left < 200) { box.style.right = 'auto'; box.style.left = 'calc(100% + 6px)'; }
     overlay.shadow.appendChild(box);
   }
 

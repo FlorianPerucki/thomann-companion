@@ -174,9 +174,13 @@ async function mgFind(q, force) {
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const countEl = doc.querySelector('#search-count');
       const modules = [...doc.querySelectorAll('.box-module')].map((b) => {
-        const a = b.querySelector('h2.module-name a, .module-name a, a[href^="/e/"]');
+        // The thumbnail link comes first in the markup and has no text: prefer the h2 link.
+        const a = b.querySelector('h2.module-name a') || b.querySelector('.module-name a') || b.querySelector('a[href^="/e/"]');
+        if (!a) return null;
         const img = b.querySelector('img');
-        return a ? { name: a.textContent.trim(), url: MG_ORIGIN + a.getAttribute('href'), id: b.getAttribute('data-module-id'), image: img ? MG_ORIGIN + img.getAttribute('src') : null } : null;
+        const vendor = b.querySelector('.module-vendor, .vendor-name, [class*="vendor"] a, [class*="vendor"]');
+        const name = a.textContent.trim() || (a.getAttribute('title') || '').replace(/^Details for\s*/i, '') || (img && img.getAttribute('alt')) || a.getAttribute('href');
+        return { name: (vendor && vendor.textContent.trim() ? vendor.textContent.trim() + ' ' : '') + name, url: MG_ORIGIN + a.getAttribute('href'), id: b.getAttribute('data-module-id'), image: img ? MG_ORIGIN + img.getAttribute('src') : null };
       }).filter(Boolean);
       const count = countEl ? Number(countEl.getAttribute('data-search-count')) : modules.length;
       return { count: isFinite(count) ? count : modules.length, modules: modules.slice(0, 8) };
@@ -558,6 +562,7 @@ stateReady.then(() => { if (alwaysOn) setBadgeAllTabs('always'); });
 
 // ---------- context menu: search selection on Thomann ----------
 browser.runtime.onInstalled.addListener(() => {
+  cacheStore.clear().catch(() => {});
   browser.contextMenus.create({
     id: 'thc-search-selection',
     title: 'Search "%s" on Thomann',
