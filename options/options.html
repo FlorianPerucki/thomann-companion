@@ -30,7 +30,9 @@
   <h2>Matching</h2>
   <label><span>Hide B-stock offers<small>Off (default): the cheapest offer of the matched product wins, B-stock included (shown with a "B" tag). On: B-stock never shown.</small></span>
     <input type="checkbox" id="hideBstock"></label>
-  <label><span>Extra stop words<small>Comma separated words to ignore in listing titles.</small></span>
+  <label><span>Skip titles containing<small>Comma separated. Listings whose title contains one of these words are not looked up at all (e.g. wanted ads).</small></span>
+    <input type="text" id="skipWords" placeholder="e.g. recherche, cherche"></label>
+  <label><span>Extra stop words<small>Comma separated words removed from titles before searching.</small></span>
     <input type="text" id="extraStopWords" placeholder="e.g. vintage, promo"></label>
   <label><span>Confident match threshold<small>0–1. Lower = more confident badges, more mistakes.</small></span>
     <input type="number" id="matchMin" min="0" max="1" step="0.05"></label>

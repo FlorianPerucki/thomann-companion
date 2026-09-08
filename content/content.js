@@ -20,6 +20,7 @@
     .b.match.cheaper { background: #2e7d32; color: #fff; border-color: #2e7d32; }
     .b.uncertain { border-color: #ef6c00; color: #b45309; background: #fff7ed; }
     .b.none, .b.error, .b.noPermission { border-color: #bbb; color: #555; background: #fafafa; }
+    .b.skipped { border-color: #ddd; color: #999; background: transparent; font-weight: 500; }
     .b.error { border-color: #d32f2f; color: #b71c1c; }
     .b.alt { border-style: dashed; }
     .b.none.has { border-style: dashed; color: #333; border-color: #888; }
@@ -113,6 +114,10 @@
       if (b.alternative) { tags.push('similar'); a.classList.add('alt'); }
       label((r.status === 'uncertain' ? '≈ ' : '') + fmtPrice(b.price, b.currency) + (r.status === 'uncertain' ? '?' : ''), tags);
       a.title = b.name + (b.alternative ? ' (from "similar searches", not a direct hit)' : '') + (b.availabilityText ? ' · ' + b.availabilityText : '') + (r.fromCache ? ' · cached ' + new Date(r.ts).toLocaleString() : '') + (r.overridden ? ' · manual match' : '');
+    } else if (r.status === 'skipped') {
+      a.href = r.searchUrl || '#';
+      label('skipped');
+      a.title = 'Not looked up: title contains "' + r.skipWord + '" (see options) — click to search on Thomann anyway';
     } else if (r.status === 'noPermission') {
       a.href = r.searchUrl;
       label('grant access');
@@ -133,6 +138,7 @@
 
     if (overlay.entry === entry) showPanel(entry);
   }
+
 
   // ---------- hover panel overlay ----------
   const overlay = { host: null, shadow: null, entry: null, hideTimer: null };
@@ -155,7 +161,7 @@
   function showPanel(entry) {
     clearTimeout(overlay.hideTimer);
     const r = entry.result;
-    if (!r || r.status === 'loading') return;
+    if (!r || r.status === 'loading' || r.status === 'skipped') return;
     ensureOverlay();
     overlay.entry = entry;
     overlay.shadow.querySelectorAll('.panel').forEach((n) => n.remove());

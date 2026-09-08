@@ -2,7 +2,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['hideBstock', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies'];
+const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies'];
 let defaults = {};
 let knownDomains = [];
 

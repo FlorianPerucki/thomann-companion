@@ -7,7 +7,8 @@ const DEFAULT_SETTINGS = {
   hideBstock: false,
   concurrency: 2,
   spacingMs: 300,
-  extraStopWords: 'recherche',
+  extraStopWords: '',
+  skipWords: 'recherche',   // titles containing one of these words are not looked up at all
   eurChfRate: 0,        // 0 = no conversion / no "cheaper" hint across currencies
   allowCookies: false,
   matchMin: 0.6,
@@ -76,6 +77,9 @@ async function lookup(msg) {
     return { status: 'noPermission', domain, searchUrl: ThomannClientLib.searchUrl(domain, msg.title, false) };
   }
   client.queue.configure({ concurrency: settings.concurrency, spacingMs: settings.spacingMs });
+
+  const skip = ThomannMatcher.findSkipWord(msg.title, settings.skipWords.split(/[,\s]+/).filter(Boolean));
+  if (skip) return { status: 'skipped', skipWord: skip, searchUrl: ThomannClientLib.searchUrl(domain, msg.title, false), ranked: [] };
 
   const extra = settings.extraStopWords.split(/[,\s]+/).filter(Boolean);
   const query = ThomannMatcher.cleanQuery(msg.title, { extraStopWords: extra });

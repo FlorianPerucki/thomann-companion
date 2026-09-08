@@ -86,3 +86,10 @@ test('a direct hit wins a tie against an alternative of the same product', () =>
   assert.equal(r.best.id, '2');
   assert.equal(M.pickBest('doepfer a-131', [alt]).status, 'match');
 });
+
+test('findSkipWord matches whole words, case and accent insensitive', () => {
+  assert.equal(M.findSkipWord('Recherche Doepfer A-110', ['recherche']), 'recherche');
+  assert.equal(M.findSkipWord('RECHERCHÉ: doepfer', ['recherche']), 'recherche');
+  assert.equal(M.findSkipWord('Doepfer A-110 recherché', ['cherche']), null); // not a whole word
+  assert.equal(M.findSkipWord('Doepfer A-110', ['recherche']), null);
+});

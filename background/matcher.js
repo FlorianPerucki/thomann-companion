@@ -119,6 +119,17 @@
   // Condition words are not part of the product identity.
   const CONDITION_TOKENS = new Set(['b-stock', 'bstock', 'b']);
 
+  /** First of `words` that appears as a whole word in `title` (case/accent-insensitive), or null. */
+  function findSkipWord(title, words) {
+    const fold = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const tokens = new Set(tokenize(fold(title)));
+    for (const w of words || []) {
+      const f = fold(w).trim();
+      if (f && tokens.has(f)) return w;
+    }
+    return null;
+  }
+
   function candidateTokens(c) {
     return new Set(tokenize(normalizeModelCodes((c.manufacturer || '') + ' ' + (c.model || ''))).filter((t) => !CONDITION_TOKENS.has(t)));
   }
@@ -207,7 +218,7 @@
     return { status: 'none', best: null, ranked };
   }
 
-  const api = { DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest, baseCode, fallbackQueries, hasCodeMatch };
+  const api = { DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest, baseCode, fallbackQueries, hasCodeMatch, findSkipWord };
   root.ThomannMatcher = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
