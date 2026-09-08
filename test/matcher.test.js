@@ -42,9 +42,18 @@ test('vintage edition loses to the standard model unless asked for', () => {
   assert.equal(v.best.model, 'A-110-1 Vintage Edition');
 });
 
-test('B-stock is penalized', () => {
+test('the cheapest offer of the identified product wins, B-stock included', () => {
   const r = M.pickBest('doepfer a-110-4 thru zero quad vco', candidates);
-  assert.equal(r.best.bstock, false);
+  assert.equal(r.status, 'match');
+  assert.equal(r.best.bstock, true);
+  assert.equal(r.best.price, 118);
+  assert.equal(r.best.aStockId, '267881');
+  // The new-condition sibling comes right after it, then other products.
+  assert.equal(r.ranked[1].model, 'A-110-4 Thru Zero Quad VCO');
+  assert.equal(r.ranked[1].bstock, false);
+  // A B-stock of a *different* product never wins on price alone.
+  const r2 = M.pickBest('doepfer a-110-2', candidates);
+  assert.equal(r2.best.model, 'A-110-2');
 });
 
 test('unrelated query yields none', () => {

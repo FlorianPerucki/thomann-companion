@@ -17,8 +17,8 @@ function htmlResponse(html, status = 200, url = '') {
 
 test('parseSearchPayload maps articles to candidates', () => {
   const c = parseSearchPayload(fixture, 'www.thomannmusic.ch');
-  assert.equal(c.length, 7);
-  assert.deepEqual(Object.keys(c[0]).sort(), ['archived', 'availabilityText', 'bstock', 'currency', 'id', 'image', 'inStock', 'manufacturer', 'model', 'name', 'price', 'url'].sort());
+  assert.equal(c.length, 8);
+  assert.deepEqual(Object.keys(c[0]).sort(), ['archived', 'availabilityText', 'bstock', 'currency', 'id', 'internalId', 'aStockId', 'image', 'inStock', 'manufacturer', 'model', 'name', 'price', 'url'].sort());
   assert.equal(c[0].price, 127);
   assert.equal(c[0].currency, 'CHF');
   assert.equal(c[0].url, 'https://www.thomannmusic.ch/doepfer_a_110_4_thru_zero_quad_vco_se.htm');
@@ -29,7 +29,7 @@ test('extractBootstrapJson bracket-matches the embedded array', () => {
   const html = '<html><script>tho.bootstrapModule(\'search.index\', [' + JSON.stringify(fixture) + ']);</script><script>tho.bootstrapModule(\'other\', {"a":"]"})</script></html>';
   const data = extractBootstrapJson(html, 'search.index');
   assert.ok(Array.isArray(data));
-  assert.equal(parseSearchPayload(data, 'www.thomann.fr').length, 7);
+  assert.equal(parseSearchPayload(data, 'www.thomann.fr').length, 8);
 });
 
 test('parseProductPage reads JSON-LD Product', () => {
@@ -51,7 +51,7 @@ test('client uses the ajax endpoint, omits credentials, and caches', async () =>
   const client = new ThomannClient({ fetch: async (u, i) => { calls.push({ u, i }); return jsonResponse(fixture); }, cache, queue: { spacingMs: 0 } });
   const r1 = await client.search('www.thomannmusic.ch', 'doepfer a-110');
   assert.equal(r1.fromCache, false);
-  assert.equal(r1.candidates.length, 7);
+  assert.equal(r1.candidates.length, 8);
   assert.equal(calls[0].u, 'https://www.thomannmusic.ch/search_searchAjax.html?sw=doepfer%20a-110');
   assert.equal(calls[0].i.credentials, 'omit');
   assert.equal(calls[0].i.headers['X-Requested-With'], 'XMLHttpRequest');
@@ -67,7 +67,7 @@ test('client falls back to the HTML bootstrap blob', async () => {
   const html = '<html><script>tho.bootstrapModule(\'search.index\', [' + JSON.stringify(fixture) + ']);</script></html>';
   const client = new ThomannClient({ fetch: async () => htmlResponse(html), cache: memCache(), queue: { spacingMs: 0 } });
   const r = await client.search('www.thomann.fr', 'doepfer a-110', { ttlMs: 0 });
-  assert.equal(r.candidates.length, 7);
+  assert.equal(r.candidates.length, 8);
 });
 
 test('client reports errors instead of throwing, and retries 5xx', async () => {

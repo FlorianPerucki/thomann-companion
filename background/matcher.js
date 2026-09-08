@@ -104,8 +104,11 @@
     return out.slice(0, opts.maxTokens || 8).join(' ');
   }
 
+  // Condition words are not part of the product identity.
+  const CONDITION_TOKENS = new Set(['b-stock', 'bstock', 'b']);
+
   function candidateTokens(c) {
-    return new Set(tokenize(normalizeModelCodes((c.manufacturer || '') + ' ' + (c.model || ''))));
+    return new Set(tokenize(normalizeModelCodes((c.manufacturer || '') + ' ' + (c.model || ''))).filter((t) => !CONDITION_TOKENS.has(t)));
   }
 
   /**
@@ -144,7 +147,6 @@
     for (const t of ct) {
       if (QUALIFIERS.includes(t) && !q.has(t)) score -= 0.15;
     }
-    if (c.bstock) score -= 0.3;
     if (c.inStock) score += 0.03;
     if (c.archived) score -= 0.5;
 
@@ -152,6 +154,10 @@
   }
 
   /**
+   * Rank candidates by *product identity*, then pick the cheapest offer of the best product.
+   * B-stock articles inherit the identity (and score) of their new-condition sibling via
+   * aStockId, so a cheaper B-stock of the right product wins over a full-price one, while a
+   * B-stock of a different product cannot sneak in.
    * @returns {{status: 'match'|'uncertain'|'none', best: object|null, ranked: object[]}}
    */
   function pickBest(query, candidates, opts) {
@@ -160,15 +166,31 @@
     const margin = opts.margin ?? 0.12;
     const uncertainMin = opts.uncertainMin ?? 0.3;
 
-    const ranked = (candidates || [])
-      .map((c) => Object.assign({}, c, { score: scoreCandidate(query, c) }))
-      .sort((a, b) => b.score - a.score);
+    const scored = (candidates || []).map((c) => Object.assign({}, c, { score: scoreCandidate(query, c) }));
+    const byInternal = new Map(scored.filter((c) => c.internalId).map((c) => [c.internalId, c]));
+    for (const c of scored) {
+      const sibling = c.bstock && c.aStockId ? byInternal.get(c.aStockId) : null;
+      c.productKey = sibling ? sibling.internalId : (c.internalId || c.id || c.name || ((c.manufacturer || '') + ' ' + (c.model || '')));
+      if (sibling) c.score = sibling.score;
+    }
 
-    if (!ranked.length) return { status: 'none', best: null, ranked };
-    const best = ranked[0];
-    const second = ranked[1] ? ranked[1].score : 0;
-    if (best.score >= matchMin && best.score - second >= margin) return { status: 'match', best, ranked };
-    if (best.score >= uncertainMin) return { status: 'uncertain', best, ranked };
+    const groups = new Map();
+    for (const c of scored) {
+      if (!groups.has(c.productKey)) groups.set(c.productKey, { score: c.score, offers: [] });
+      const g = groups.get(c.productKey);
+      g.score = Math.max(g.score, c.score);
+      g.offers.push(c);
+    }
+    const rankedGroups = [...groups.values()].sort((a, b) => b.score - a.score);
+    for (const g of rankedGroups) g.offers.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    const ranked = rankedGroups.flatMap((g) => g.offers);
+
+    if (!rankedGroups.length) return { status: 'none', best: null, ranked };
+    const bestScore = rankedGroups[0].score;
+    const second = rankedGroups[1] ? rankedGroups[1].score : 0;
+    const best = rankedGroups[0].offers[0];
+    if (bestScore >= matchMin && bestScore - second >= margin) return { status: 'match', best, ranked };
+    if (bestScore >= uncertainMin) return { status: 'uncertain', best, ranked };
     return { status: 'none', best: null, ranked };
   }
 

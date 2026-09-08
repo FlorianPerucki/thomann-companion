@@ -43,6 +43,8 @@
     const link = String(a.relativeLink || (a.fileName ? a.fileName + '.htm' : '')).split('?')[0];
     return {
       id: String(a.number || a.id || ''),
+      internalId: a.id != null ? String(a.id) : null,
+      aStockId: a.aStockArticleId != null ? String(a.aStockArticleId) : null, // B-stock -> the new-condition article
       manufacturer: a.manufacturer || '',
       model: a.model || '',
       name: ((a.manufacturer || '') + ' ' + (a.model || '')).trim(),
@@ -83,6 +85,8 @@
           ? name.slice(String(brand).length).trim() : name;
         return [{
           id: String(n.sku || n.productID || n.mpn || ''),
+          internalId: null,
+          aStockId: null,
           manufacturer: String(brand),
           model,
           name: (brand ? brand + ' ' : '') + model,

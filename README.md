@@ -21,7 +21,7 @@ Or, with Node installed: `npm install && npm start` (runs Firefox with the exten
 - `t 127 CHF` green: confident match. Dark green: cheaper than the listing (same currency, or via the EUR→CHF rate in options).
 - `t ≈ 127 CHF?` amber: uncertain — hover to see alternatives and click **use** to remember the right one.
 - `t no match ↗` / `t error ↗`: links to the Thomann search page instead.
-- Tags: `B` = B-stock, `⏳` = not in stock.
+- Tags: `B` = B-stock, `⏳` = not in stock. Matching identifies the *product*; among that product's offers (new and B-stock, linked via Thomann's `aStockArticleId`) the cheapest one is shown, and the hover panel lists the others.
 
 Hover any badge for the query used, the top 5 candidates with scores, a **refresh** button (bypasses the cache) and a search link.
 
