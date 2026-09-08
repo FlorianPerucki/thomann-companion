@@ -163,7 +163,14 @@
       res = await fetchFn(url, init('include'));
       res.usedCookies = true;
     }
-    if (res.status === 429 || res.status >= 500) { const e = new Error('HTTP ' + res.status); e.retryable = true; throw e; }
+    if (res.status === 429 || res.status >= 500) {
+      const e = new Error('HTTP ' + res.status + (res.status === 429 ? ' — rate limited by ' + provider.origin.replace(/^https?:\/\//, '') : ''));
+      e.retryable = true;
+      e.status = res.status;
+      const ra = res.headers && res.headers.get ? Number(res.headers.get('Retry-After')) : NaN;
+      e.retryAfterMs = isFinite(ra) && ra > 0 ? ra * 1000 : (res.status === 429 ? 60000 : 2000);
+      throw e;
+    }
     if (res.status === 403) throw new Error('HTTP 403 — blocked by the site\'s anti-bot protection; open ' + provider.origin + ' in a tab once, then refresh');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();

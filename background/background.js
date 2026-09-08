@@ -108,8 +108,9 @@ const client = new ThomannClientLib.ThomannClient({ fetch: (u, i) => fetch(u, i)
 
 // One polite queue per marketplace (they run anti-bot systems): 1 at a time, >= 800 ms apart.
 const marketQueues = {};
+const MARKET_SPACING = { ricardo: 2000, leboncoin: 1000, anibis: 800 };
 function marketQueue(id) {
-  if (!marketQueues[id]) marketQueues[id] = new ThomannClientLib.Queue({ concurrency: 1, spacingMs: 800 });
+  if (!marketQueues[id]) marketQueues[id] = new ThomannClientLib.Queue({ concurrency: 1, spacingMs: MARKET_SPACING[id] || 800 });
   return marketQueues[id];
 }
 const marketInflight = new Map();
@@ -267,14 +268,15 @@ async function lookupModularGrid(msg, settings) {
 }
 
 async function fetchMarketWithRetry(provider, query, settings) {
-  let delay = 1000;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await ThomannMarketplaces.fetchListings(provider, query, settings, (u, i) => fetch(u, i));
     } catch (e) {
       if (!e.retryable || attempt === 2) throw e;
-      await new Promise((r) => setTimeout(r, delay));
-      delay *= 2;
+      const wait = Math.min(e.retryAfterMs || 2000 * (attempt + 1), 120000);
+      // A 429 concerns the whole site: hold every queued request for it, not just this one.
+      if (e.status === 429) marketQueue(provider.id).pauseUntil(Date.now() + wait);
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
   throw new Error('unreachable');

@@ -136,3 +136,8 @@ test('fetchListings retries once with cookies on 403 (DataDome), unless disabled
   await assert.rejects(fetchListings(PROVIDERS.leboncoin, 'x', { marketCookieFallback: false }, async (u, i) => { calls2.push(i.credentials); return { ok: false, status: 403, text: async () => '' }; }), /403/);
   assert.deepEqual(calls2, ['omit']);
 });
+
+test('a 429 answer carries Retry-After for the queue back-off', async () => {
+  const f = async () => ({ ok: false, status: 429, headers: { get: (h) => (h === 'Retry-After' ? '30' : null) }, text: async () => '' });
+  await assert.rejects(fetchListings(PROVIDERS.ricardo, 'x', {}, f), (e) => e.retryable && e.status === 429 && e.retryAfterMs === 30000 && /rate limited/.test(e.message));
+});

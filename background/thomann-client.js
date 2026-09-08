@@ -130,6 +130,11 @@
       if (opts.concurrency) this.concurrency = Math.max(1, opts.concurrency);
       if (opts.spacingMs != null) this.spacingMs = Math.max(0, opts.spacingMs);
     }
+    /** Hold every queued task until `until` (ms timestamp), e.g. after a 429. */
+    pauseUntil(until) {
+      this.blockedUntil = Math.max(this.blockedUntil || 0, until);
+      setTimeout(() => this._drain(), Math.max(0, until - Date.now()) + 10);
+    }
     push(task, priority) {
       return new Promise((resolve, reject) => {
         this.pending.push({ task, resolve, reject, priority: priority || 0 });
@@ -139,6 +144,7 @@
     }
     _drain() {
       if (this.running >= this.concurrency || !this.pending.length) return;
+      if (this.blockedUntil && Date.now() < this.blockedUntil) return; // pauseUntil() re-drains later
       const wait = Math.max(0, this.lastStart + this.spacingMs - Date.now());
       if (wait > 0) { setTimeout(() => this._drain(), wait); return; }
       const job = this.pending.shift();

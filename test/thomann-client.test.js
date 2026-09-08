@@ -104,3 +104,12 @@ test('alternativeArticles ("similar searches") are returned as flagged candidate
   assert.equal(c[0].alternative, true);
   assert.equal(c[0].url, 'https://www.thomannmusic.ch/doepfer_a131.htm');
 });
+
+test('Queue.pauseUntil holds queued tasks and resumes afterwards', async () => {
+  const { Queue } = require('../background/thomann-client.js');
+  const q = new Queue({ concurrency: 1, spacingMs: 0 });
+  const t0 = Date.now();
+  q.pauseUntil(t0 + 120);
+  const done = await q.push(async () => Date.now());
+  assert.ok(done - t0 >= 100, 'task ran too early: ' + (done - t0) + 'ms');
+});
