@@ -16,7 +16,7 @@ Or, with Node installed: `npm install && npm start` (runs Firefox with the exten
 
 ## Options
 
-`about:addons` → Thomann Price Companion → Preferences. Shop domain (thomannmusic.ch / thomann.fr / thomann.de or custom), cache lifetime, B-stock handling, skip words (titles containing them are never looked up; default `recherche`), extra stop words, match threshold, request pacing, cookie policy (off by default — requests are anonymous), clear cache / clear manual matches.
+`about:addons` → Thomann Price Companion → Preferences. Shop domain (thomannmusic.ch, thomannmusic.com/fr-ch, thomann.fr, thomann.de or custom — a host optionally followed by a locale path), cache lifetime, B-stock handling, skip words (titles containing them are never looked up; default `recherche`), extra stop words, match threshold, request pacing, cookie policy (off by default — requests are anonymous), clear cache / clear manual matches.
 
 ## Badge states
 
@@ -39,7 +39,7 @@ Layout: `background/` (Thomann client, matcher, message router), `content/` (ada
 
 ## How lookups work
 
-Reverse mode queries the marketplaces directly, without cookies: leboncoin's search page (`/recherche?text=…&category=30`) and anibis's (`/fr/q/?query=…`) embed their results as JSON in `__NEXT_DATA__`; ricardo's search page is server-rendered and parsed with the same card logic as the ricardo page adapter. The Thomann product name is the query, listing titles are the candidates, and every listing above the threshold counts (wanted ads are dropped). One request at a time per marketplace, ≥ 800 ms apart, cached 2 h.
+Reverse mode queries the marketplaces directly, without cookies: leboncoin's search page (`/recherche?text=…&category=30`) and anibis's (`/fr/q/?query=…`) embed their results as JSON in `__NEXT_DATA__`; ricardo's search page is server-rendered and parsed with the same card logic as the ricardo page adapter. The Thomann product name is the query; a listing counts only if every word of that name with 3+ characters appears in its title (model codes also accept their base form, A-140 ~ A-140-1); wanted ads are dropped. Each pill has its own hover panel. One request at a time per marketplace, ≥ 800 ms apart, cached 2 h.
 
 
 The background script calls `https://<shop>/search_searchAjax.html?sw=<query>` with `credentials: "omit"`, which returns the same JSON the search page embeds (`articleListsSettings.articles[]` with model, price, availability, link). If that fails it falls back to parsing the HTML search page's `tho.bootstrapModule('search.index', …)` blob, then to a product page's JSON-LD. Results are cached in `storage.local` (24 h by default), requests are queued (2 parallel, ≥300 ms apart) and only cards near the viewport trigger lookups.

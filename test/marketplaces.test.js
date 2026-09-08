@@ -89,13 +89,28 @@ test('fetchListings never sends cookies by default and reports anti-bot pages', 
   await assert.rejects(fetchListings(PROVIDERS.leboncoin, 'x', {}, fakeFetch('<html>captcha-delivery.com datadome</html>')), /anti-bot/);
 });
 
+test('pickMatches is strict: every 3+ letter word of the product name must be in the title', () => {
+  const ls = [
+    { id: '1', title: 'Doepfer A-131 exponential VCA', price: 50 },
+    { id: '2', title: 'A-131 VCA', price: 40 },                 // brand missing -> out
+    { id: '3', title: 'Doepfer A-140 ADSR', price: 45 },        // wrong code -> out
+    { id: '4', title: 'doepfer a131', price: 60 },              // spelling variants are normalized
+    { id: '5', title: 'Recherche Doepfer A-131', price: 1, wanted: true }
+  ];
+  assert.deepEqual(M.pickMatches('doepfer a-131', ls).map((l) => l.id), ['1', '4']);
+  // multi-word names: all words required, "-1" and base code are interchangeable
+  const ls2 = [{ id: 'a', title: 'Doepfer A-110-4 Thru Zero Quad VCO', price: 100 }, { id: 'b', title: 'Doepfer A-110-4', price: 90 }];
+  assert.deepEqual(M.pickMatches('doepfer a-110-4 thru zero quad vco', ls2).map((l) => l.id), ['a']);
+  assert.deepEqual(M.pickMatches('doepfer a-140-1', [{ id: 'c', title: 'Doepfer A-140 ADSR', price: 45 }]).map((l) => l.id), ['c']);
+});
+
 test('pickMatches keeps the right product only, cheapest first, and ignores wanted ads', async () => {
   const lbc = await fetchListings(PROVIDERS.leboncoin, 'doepfer a-131', {}, fakeFetch(LBC));
   const ric = await fetchListings(PROVIDERS.ricardo, 'doepfer a-131', {}, fakeFetch(RIC));
   const ani = await fetchListings(PROVIDERS.anibis, 'doepfer a-131', {}, fakeFetch(ANI));
   const all = lbc.concat(ric, ani);
   const m = M.pickMatches('doepfer a-131', all, { min: 0.5 });
-  assert.deepEqual(m.map((l) => l.source + ':' + l.price), ['ricardo:40', 'anibis:45', 'leboncoin:50']);
+  assert.deepEqual(m.map((l) => l.source + ':' + l.price), ['ricardo:40', 'anibis:45', 'leboncoin:50']); // all titles carry "Doepfer A-131"
 });
 
 test('marketQueries: brand + code, then base code, then brand (anibis: base code first)', () => {

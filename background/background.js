@@ -22,12 +22,31 @@ const DEFAULT_SETTINGS = {
   allowMarketCookies: false
 };
 
-const KNOWN_DOMAINS = ['www.thomannmusic.ch', 'www.thomann.fr', 'www.thomann.de'];
+const KNOWN_DOMAINS = ['www.thomannmusic.ch', 'www.thomannmusic.com/fr-ch', 'www.thomannmusic.com/de-ch', 'www.thomann.fr', 'www.thomann.de'];
 const CACHE_KEY = 'cache';
 const OVERRIDES_KEY = 'overrides';
 const CACHE_MAX_ENTRIES = 600;
 
 const enabledTabs = new Map(); // tabId -> { mode: 'page' | 'keep', origin? }
+
+// The event page can be suspended; KEEP states are mirrored in storage.session so they
+// survive a restart of the background script (page-only states are not worth keeping).
+const STATE_KEY = 'tabStates';
+const sessionStore = browser.storage.session || browser.storage.local;
+async function persistStates() {
+  const obj = {};
+  for (const [id, st] of enabledTabs) if (st.mode === 'keep') obj[id] = st;
+  await sessionStore.set({ [STATE_KEY]: obj }).catch(() => {});
+}
+const stateReady = (async () => {
+  try {
+    const { [STATE_KEY]: obj = {} } = await sessionStore.get(STATE_KEY);
+    for (const [id, st] of Object.entries(obj)) {
+      const tabId = Number(id);
+      try { await browser.tabs.get(tabId); enabledTabs.set(tabId, st); } catch (e) { /* tab is gone */ }
+    }
+  } catch (e) { /* ignore */ }
+})();
 
 // ---------- settings ----------
 async function getSettings() {
@@ -93,7 +112,7 @@ async function setHidden(source, id, hidden) {
 }
 
 // ---------- permissions ----------
-function originFor(domain) { return 'https://' + domain + '/*'; }
+function originFor(domain) { return 'https://' + String(domain).split('/')[0] + '/*'; }
 async function hasHostPermission(domain) {
   try { return await browser.permissions.contains({ origins: [originFor(domain)] }); } catch (e) { return false; }
 }
@@ -263,7 +282,7 @@ const CONTENT_FILES = [
   'content/content.js'
 ];
 
-const THOMANN_HOSTS = /(^|\.)(thomann\.de|thomann\.fr|thomannmusic\.ch|thomann\.[a-z]{2,3})$/;
+const THOMANN_HOSTS = /(^|\.)(thomannmusic\.(ch|com)|thomann\.[a-z]{2,3})$/;
 
 /** Origins the lookups for this page will need (Thomann shop, or the enabled marketplaces). */
 function originsNeededFor(url, settings) {
@@ -320,9 +339,11 @@ async function keepOnTab(tabId, url) {
   const origin = originPatternFor(url);
   if (!origin) return false;
   let granted = false;
-  try { granted = await browser.permissions.request({ origins: [origin] }); } catch (e) { granted = false; }
+  try { granted = await browser.permissions.contains({ origins: [origin] }); } catch (e) { granted = false; }
+  if (!granted) { try { granted = await browser.permissions.request({ origins: [origin] }); } catch (e) { granted = false; } }
   if (!granted) return false;
   enabledTabs.set(tabId, { mode: 'keep', origin });
+  await persistStates();
   await setBadge(tabId, 'keep');
   return true;
 }
@@ -330,6 +351,7 @@ async function keepOnTab(tabId, url) {
 async function disableOnTab(tabId) {
   const state = enabledTabs.get(tabId);
   enabledTabs.delete(tabId);
+  await persistStates();
   await browser.tabs.sendMessage(tabId, { type: 'disable' }).catch(() => {});
   await setBadge(tabId, 'off');
   if (state && state.mode === 'keep' && state.origin) {
@@ -342,7 +364,7 @@ async function disableOnTab(tabId) {
 browser.action.onClicked.addListener((tab) => {
   if (!tab || tab.id == null) return;
   if (!/^https?:/.test(tab.url || '')) return;
-  const state = enabledTabs.get(tab.id);
+  const state = enabledTabs.get(tab.id); // stateReady has normally resolved long before a click
   // No await before permissions.request: it must run inside the click's user-gesture context.
   let p;
   if (!state) p = enableOnTab(tab.id, tab.url);
@@ -351,16 +373,18 @@ browser.action.onClicked.addListener((tab) => {
   p.catch((e) => console.error('[thomann-companion] toggle failed', e));
 });
 
-browser.tabs.onRemoved.addListener((tabId) => enabledTabs.delete(tabId));
+browser.tabs.onRemoved.addListener((tabId) => { if (enabledTabs.delete(tabId)) persistStates(); });
 
 // A real navigation (not pushState): page mode ends; keep mode re-injects when the origin still
 // matches, and ends when the tab leaves the site.
-browser.webNavigation.onCommitted.addListener((details) => {
+browser.webNavigation.onCommitted.addListener(async (details) => {
   if (details.frameId !== 0) return;
+  await stateReady;
   const state = enabledTabs.get(details.tabId);
   if (!state) return;
   if (state.mode === 'keep' && originPatternFor(details.url) === state.origin) return;
   enabledTabs.delete(details.tabId);
+  persistStates();
   setBadge(details.tabId, 'off').catch(() => {});
   if (state.mode === 'keep' && state.origin) {
     const stillUsed = [...enabledTabs.values()].some((s) => s.mode === 'keep' && s.origin === state.origin);
@@ -370,6 +394,7 @@ browser.webNavigation.onCommitted.addListener((details) => {
 
 browser.webNavigation.onDOMContentLoaded.addListener(async (details) => {
   if (details.frameId !== 0) return;
+  await stateReady;
   const state = enabledTabs.get(details.tabId);
   if (!state || state.mode !== 'keep') return;
   try {
@@ -378,6 +403,7 @@ browser.webNavigation.onDOMContentLoaded.addListener(async (details) => {
   } catch (e) {
     console.warn('[thomann-companion] re-inject failed', e);
     enabledTabs.delete(details.tabId);
+    persistStates();
     setBadge(details.tabId, 'off').catch(() => {});
   }
 });

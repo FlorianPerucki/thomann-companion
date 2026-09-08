@@ -103,14 +103,15 @@
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.addEventListener('click', (e) => e.stopPropagation());
+      // One panel per pill: hovering the lbc pill shows only leboncoin results, etc.
+      a.addEventListener('mouseenter', () => showPanel(entry, src));
+      a.addEventListener('focus', () => showPanel(entry, src));
+      a.addEventListener('mouseleave', scheduleHidePanel);
+      a.addEventListener('blur', scheduleHidePanel);
       shadow.appendChild(a);
       entry.pills[src] = { a, result: null, requested: false };
       renderPill(entry, src, { status: 'idle' });
     }
-    host.addEventListener('mouseenter', () => showPanel(entry));
-    host.addEventListener('focusin', () => showPanel(entry));
-    host.addEventListener('mouseleave', scheduleHidePanel);
-    host.addEventListener('focusout', scheduleHidePanel);
     const m = product.mount;
     if (m && m.parentNode) {
       if (m.tagName === 'H1') m.appendChild(host); else m.insertAdjacentElement('afterend', host);
@@ -164,11 +165,11 @@
       else if (src !== 'thomann') label('0 ↗');
       else label('no match ↗');
     }
-    if (overlay.entry === entry) showPanel(entry);
+    if (overlay.entry === entry && overlay.src === src) showPanel(entry, src);
   }
 
   // ---------- hover panel overlay ----------
-  const overlay = { host: null, shadow: null, entry: null, hideTimer: null };
+  const overlay = { host: null, shadow: null, entry: null, src: null, hideTimer: null };
 
   function ensureOverlay() {
     if (overlay.host && overlay.host.isConnected) return;
@@ -185,21 +186,23 @@
     overlay.host = host; overlay.shadow = shadow;
   }
 
-  function showPanel(entry) {
+  function showPanel(entry, src) {
     clearTimeout(overlay.hideTimer);
-    const ready = sources.filter((s) => { const r = entry.pills[s].result; return r && r.status !== 'loading' && r.status !== 'skipped'; });
-    if (!ready.length) return;
+    const r = entry.pills[src] && entry.pills[src].result;
+    if (!r || r.status === 'loading' || r.status === 'skipped') return;
     ensureOverlay();
     overlay.entry = entry;
+    overlay.src = src;
     overlay.shadow.querySelectorAll('.panel').forEach((n) => n.remove());
-    overlay.shadow.appendChild(buildPanel(entry, ready));
+    overlay.shadow.appendChild(buildPanel(entry, [src]));
     overlay.host.hidden = false;
     positionPanel();
   }
 
   function positionPanel() {
     if (!overlay.entry || overlay.host.hidden) return;
-    const rect = overlay.entry.host.getBoundingClientRect();
+    const pill = overlay.entry.pills[overlay.src];
+    const rect = (pill ? pill.a : overlay.entry.host).getBoundingClientRect();
     const panel = overlay.shadow.querySelector('.panel');
     const pw = panel ? panel.offsetWidth : 300, ph = panel ? panel.offsetHeight : 200;
     let left = rect.left, top = rect.bottom + 4;
@@ -211,6 +214,7 @@
   function hidePanel() {
     if (overlay.host) overlay.host.hidden = true;
     overlay.entry = null;
+    overlay.src = null;
   }
 
   function scheduleHidePanel() {
@@ -231,7 +235,7 @@
     p.appendChild(el('div', 'q', 'Query: ' + (first.query || entry.product.title)));
     for (const src of ready) {
       const r = entry.pills[src].result;
-      if (ready.length > 1 || src !== 'thomann') p.appendChild(el('h4', null, SOURCE_NAME[src] || src));
+      if (src !== 'thomann') p.appendChild(el('h4', null, SOURCE_NAME[src] || src));
       if (src === 'thomann') thomannSection(p, entry, r);
       else marketSection(p, entry, src, r);
     }

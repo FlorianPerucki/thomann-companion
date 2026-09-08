@@ -32,7 +32,7 @@
   globalThis.__thcAdapters.push({
     name: 'thomann',
     sources: SOURCES,
-    matches: (loc) => /(^|\.)(thomann\.[a-z]{2,3}|thomannmusic\.ch)$/.test(loc.hostname),
+    matches: (loc) => /(^|\.)(thomann\.[a-z]{2,3}|thomannmusic\.(ch|com))$/.test(loc.hostname),
     findProducts(root) {
       const entries = [...(root || document).querySelectorAll('.fx-product-list-entry')];
       if (entries.length) return entries.map(fromEntry).filter(Boolean);

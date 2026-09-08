@@ -15,7 +15,7 @@ function status(msg, cls) {
 }
 
 function currentDomain() {
-  const custom = $('customDomain').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const custom = $('customDomain').value.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
   return custom || $('domain').value;
 }
 
@@ -86,7 +86,7 @@ async function load() {
 
 $('save').addEventListener('click', async () => {
   const s = read();
-  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s.domain)) { status('Invalid domain', 'warn'); return; }
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}(\/[a-z0-9_-]+)*$/i.test(s.domain)) { status('Invalid domain (host, optionally followed by a locale path such as /fr-ch)', 'warn'); return; }
   await browser.runtime.sendMessage({ type: 'saveSettings', settings: s });
   status('Saved.', 'ok');
   refreshPermission();
@@ -97,7 +97,7 @@ $('reset').addEventListener('click', () => { fill(defaults); status('Defaults re
 $('grant').addEventListener('click', async () => {
   const domain = currentDomain();
   try {
-    const ok = await browser.permissions.request({ origins: ['https://' + domain + '/*'] });
+    const ok = await browser.permissions.request({ origins: ['https://' + domain.split('/')[0] + '/*'] });
     status(ok ? 'Access granted.' : 'Access denied.', ok ? 'ok' : 'warn');
   } catch (e) {
     status('Cannot request access for ' + domain + ' (not declared in the manifest).', 'warn');

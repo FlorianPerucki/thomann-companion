@@ -6,6 +6,7 @@
   "permissions": ["activeTab", "scripting", "storage", "contextMenus", "webNavigation"],
   "host_permissions": [
     "https://www.thomannmusic.ch/*",
+    "https://www.thomannmusic.com/*",
     "https://www.thomann.fr/*",
     "https://www.thomann.de/*",
     "https://www.leboncoin.fr/*",

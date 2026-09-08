@@ -225,15 +225,19 @@
   function pickMatches(query, listings, opts) {
     opts = opts || {};
     const min = opts.min ?? 0.5;
+    const minLen = opts.minTokenLength ?? 3;
+    const qTokens = tokenize(normalizeModelCodes(query));
+    // Strict rule: every word of the Thomann product name with 3+ characters must appear in
+    // the listing title (model codes also accept their base form, A-140 ~ A-140-1).
+    const required = qTokens.filter((t) => t.length >= minLen);
     const out = [];
     for (const l of listings || []) {
       if (l.wanted) continue;
-      const cand = { manufacturer: '', model: cleanQuery(l.title, { maxTokens: 12 }), inStock: true };
-      let score = scoreCandidate(query, cand);
-      // Brand-less titles ("A-131 VCA") are common: forgive a missing brand when the model code matches.
-      const qTokens = tokenize(normalizeModelCodes(query));
-      const qCode = qTokens.find((t) => MODEL_CODE.test(t));
-      if (qCode && score < min && tokenize(cand.model).some((t) => t === qCode || baseCode(t) === baseCode(qCode))) score = Math.max(score, min);
+      const model = cleanQuery(l.title, { maxTokens: 16 });
+      const ct = new Set(tokenize(normalizeModelCodes(model)));
+      const present = (t) => ct.has(t) || (MODEL_CODE.test(t) && [...ct].some((c) => MODEL_CODE.test(c) && baseCode(c) === baseCode(t)));
+      if (!required.every(present)) continue;
+      const score = scoreCandidate(query, { manufacturer: '', model, inStock: true });
       if (score >= min) out.push(Object.assign({}, l, { score: Math.round(score * 1000) / 1000 }));
     }
     out.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
