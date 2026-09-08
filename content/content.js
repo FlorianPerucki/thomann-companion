@@ -50,6 +50,7 @@
     .panel .row a.n { flex: 1; color: #1a56db; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .panel .row .p { font-weight: 600; white-space: nowrap; }
     .panel .row .s { color: #999; font-size: 10px; white-space: nowrap; }
+    .panel .row .s + .p { flex: 1; text-align: right; font-weight: 500; }
     .panel .empty { color: #888; font-size: 11px; padding: 2px; }
     .panel button { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #bbb; border-radius: 4px; background: #f6f6f6; cursor: pointer; }
     .panel .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; color: #888; font-size: 10px; gap: 8px; }
@@ -236,7 +237,7 @@
     clearTimeout(overlay.hideTimer);
     const r = entry.pills[src] && entry.pills[src].result;
     if (!r || r.status === 'loading' || r.status === 'skipped' || r.status === 'link') return;
-    if (r.status === 'mg' && r.count === 1) return;
+    if (r.status === 'mg' && r.count === 1 && !(r.specs && r.specs.length)) return;
     ensureOverlay();
     overlay.entry = entry;
     overlay.src = src;
@@ -379,6 +380,23 @@
   }
 
   function mgSection(p, entry, r) {
+    if (r.count === 1 && r.specs && r.specs.length) {
+      // Single module: the spec box from its ModularGrid page.
+      const m = r.modules[0];
+      const head = el('div', 'row');
+      const n = el('a', 'n', m.name);
+      n.href = m.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
+      head.append(n);
+      attachPreview(head, m.image, m.name);
+      p.appendChild(head);
+      for (const sp of r.specs) {
+        const row = el('div', 'row');
+        row.append(el('span', 's', sp.label), el('span', 'p', sp.values.join(' · ')));
+        p.appendChild(row);
+      }
+      p.appendChild(footer(entry, 'modulargrid', r, null));
+      return;
+    }
     for (const m of r.modules || []) {
       const row = el('div', 'row');
       const n = el('a', 'n', m.name);

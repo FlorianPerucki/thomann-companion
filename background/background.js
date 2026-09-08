@@ -183,7 +183,22 @@ async function mgFind(q, force) {
         return { name: (vendor && vendor.textContent.trim() ? vendor.textContent.trim() + ' ' : '') + name, url: MG_ORIGIN + a.getAttribute('href'), id: b.getAttribute('data-module-id'), image: img ? MG_ORIGIN + img.getAttribute('src') : null };
       }).filter(Boolean);
       const count = countEl ? Number(countEl.getAttribute('data-search-count')) : modules.length;
-      return { count: isFinite(count) ? count : modules.length, modules: modules.slice(0, 8) };
+      const data = { count: isFinite(count) ? count : modules.length, modules: modules.slice(0, 8) };
+      // Single hit: also read the module page's spec box (dimensions, current draw, price).
+      if (data.count === 1 && data.modules[0]) {
+        try {
+          const page = await fetch(data.modules[0].url, { credentials: 'omit' }).then((r) => (r.ok ? r.text() : ''));
+          const pdoc = new DOMParser().parseFromString(page, 'text/html');
+          const specs = [];
+          for (const dl of pdoc.querySelectorAll('.box-specs dl')) {
+            const dt = dl.querySelector('dt');
+            const dds = [...dl.querySelectorAll('dd')].map((d) => d.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean);
+            if (dt && dds.length) specs.push({ label: dt.textContent.replace(/\s+/g, ' ').trim(), values: dds });
+          }
+          data.specs = specs;
+        } catch (e) { /* specs are optional */ }
+      }
+      return data;
     }).finally(() => mgInflight.delete(key)));
   }
   const data = await mgInflight.get(key);
@@ -225,6 +240,7 @@ async function lookupModularGrid(msg, settings) {
     query: q,
     count: data.count,
     modules: data.modules,
+    specs: data.specs || null,
     searchQuery: used,
     url: data.count === 1 && data.modules[0] ? data.modules[0].url : mgSearchUrl(used),
     searchUrl: mgSearchUrl(used)
