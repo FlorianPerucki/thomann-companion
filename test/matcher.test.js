@@ -51,3 +51,15 @@ test('unrelated query yields none', () => {
   const r = M.pickBest('make noise maths', candidates);
   assert.equal(r.status, 'none');
 });
+
+test('"a-140-1" matches Thomann\'s "A-140" (base model) and proposes a fallback query', () => {
+  const real = [['A-140-2', 127], ['A-100BS2-P9 PSU3', 2190], ['A-140-2 VE', 145], ['A-140-3', 90], ['A-140', 59], ['A-140 Vintage Edition', 84], ['A-140-3 VE', 99]]
+    .map(([model, price]) => ({ manufacturer: 'Doepfer', model, price, inStock: true }));
+  assert.deepEqual(M.fallbackQueries('doepfer a-140-1'), ['doepfer a-140']);
+  assert.equal(M.hasCodeMatch('doepfer a-140-1', real.slice(0, 4)), false);
+  assert.equal(M.hasCodeMatch('doepfer a-140-1', real), true);
+  const r = M.pickBest('doepfer a-140-1', real);
+  assert.equal(r.status, 'match');
+  assert.equal(r.best.model, 'A-140');
+  assert.equal(M.pickBest('doepfer a-140-2', real).best.model, 'A-140-2');
+});

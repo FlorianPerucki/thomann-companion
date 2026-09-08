@@ -94,3 +94,16 @@ test('generic adapter handles a JSON-LD product page', () => {
   assert.equal(products[0].priceValue, 299);
   assert.equal(products[0].mount.className, 'price');
 });
+
+test('leboncoin adapter handles the ad page (main price + sticky header, not the other ads)', () => {
+  const html = `<main>
+    <div class="sticky"><p class="text-headline-2">50 €</p></div>
+    <h1>Doepfer A-183-5 Quad Attenuator</h1>
+    <p class="text-headline-1">50 €</p>
+    <section><article aria-label="Other ad"><div data-qa-id="aditem_container"><a href="/ad/instruments_de_musique/1"></a><span class="text-success">50 €</span></div></article></section>
+  </main>`;
+  const { products } = load(html, 'https://www.leboncoin.fr/ad/instruments_de_musique/3215266634');
+  assert.equal(products.length, 2);
+  assert.ok(products.every((p) => p.title === 'Doepfer A-183-5 Quad Attenuator' && p.priceValue === 50));
+  assert.equal(products.find((p) => p.key === 'lbc:3215266634').mount.className, 'text-headline-1');
+});

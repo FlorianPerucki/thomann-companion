@@ -23,8 +23,14 @@
     .b.error { border-color: #d32f2f; color: #b71c1c; }
     .logo { font-weight: 800; letter-spacing: -.02em; color: #0aa; }
     .tag { font-size: 10px; padding: 0 4px; border-radius: 4px; background: #eee; color: #333; }
-    .panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 260px; max-width: 380px; padding: 8px; background: #fff; color: #222; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.18); font-weight: 400; z-index: 1; }
-    :host(:hover) .panel, :host(:focus-within) .panel { display: block; }
+  `;
+
+  // The hover panel lives in one overlay attached to <html> with position:fixed, so card
+  // containers with overflow:hidden cannot clip it.
+  const PANEL_CSS = `
+    :host([hidden]) { display: none !important; }
+    :host { all: initial; display: block; position: fixed; top: 0; left: 0; z-index: 2147483001; font: 400 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .panel { box-sizing: border-box; min-width: 260px; max-width: min(420px, 95vw); max-height: 70vh; overflow: auto; padding: 8px; background: #fff; color: #222; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
     .panel .q { color: #666; font-size: 11px; margin-bottom: 6px; word-break: break-word; }
     .panel .row { display: flex; align-items: center; gap: 6px; padding: 4px 2px; border-top: 1px solid #eee; }
     .panel .row a.n { flex: 1; color: #1a56db; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -64,6 +70,10 @@
     style.textContent = CSS;
     shadow.appendChild(style);
     const entry = { host, shadow, product, result: null, requested: false };
+    host.addEventListener('mouseenter', () => showPanel(entry));
+    host.addEventListener('focusin', () => showPanel(entry));
+    host.addEventListener('mouseleave', scheduleHidePanel);
+    host.addEventListener('focusout', scheduleHidePanel);
     render(entry, { status: 'idle' });
     const m = product.mount;
     if (m && m.parentNode) {
@@ -74,7 +84,7 @@
 
   function render(entry, r) {
     const { shadow, product } = entry;
-    shadow.querySelectorAll('.b, .panel').forEach((n) => n.remove());
+    shadow.querySelectorAll('.b').forEach((n) => n.remove());
     const a = document.createElement('a');
     a.className = 'b ' + (r.status === 'idle' ? 'loading' : r.status);
     a.target = '_blank';
@@ -116,7 +126,58 @@
     a.addEventListener('click', (e) => e.stopPropagation());
     shadow.appendChild(a);
 
-    if (r.status !== 'idle' && r.status !== 'loading') shadow.appendChild(buildPanel(entry, r));
+    if (overlay.entry === entry) showPanel(entry);
+  }
+
+  // ---------- hover panel overlay ----------
+  const overlay = { host: null, shadow: null, entry: null, hideTimer: null };
+
+  function ensureOverlay() {
+    if (overlay.host && overlay.host.isConnected) return;
+    const host = document.createElement('span');
+    host.setAttribute('data-thc-host', 'panel');
+    host.hidden = true;
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = PANEL_CSS;
+    shadow.appendChild(style);
+    host.addEventListener('mouseenter', () => clearTimeout(overlay.hideTimer));
+    host.addEventListener('mouseleave', scheduleHidePanel);
+    document.documentElement.appendChild(host);
+    overlay.host = host; overlay.shadow = shadow;
+  }
+
+  function showPanel(entry) {
+    clearTimeout(overlay.hideTimer);
+    const r = entry.result;
+    if (!r || r.status === 'loading') return;
+    ensureOverlay();
+    overlay.entry = entry;
+    overlay.shadow.querySelectorAll('.panel').forEach((n) => n.remove());
+    overlay.shadow.appendChild(buildPanel(entry, r));
+    overlay.host.hidden = false;
+    positionPanel();
+  }
+
+  function positionPanel() {
+    if (!overlay.entry || overlay.host.hidden) return;
+    const rect = overlay.entry.host.getBoundingClientRect();
+    const panel = overlay.shadow.querySelector('.panel');
+    const pw = panel ? panel.offsetWidth : 300, ph = panel ? panel.offsetHeight : 200;
+    let left = rect.left, top = rect.bottom + 4;
+    if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+    if (top + ph > window.innerHeight - 8 && rect.top - ph - 4 > 0) top = rect.top - ph - 4;
+    overlay.host.style.transform = 'translate(' + Math.round(left) + 'px,' + Math.round(top) + 'px)';
+  }
+
+  function hidePanel() {
+    if (overlay.host) overlay.host.hidden = true;
+    overlay.entry = null;
+  }
+
+  function scheduleHidePanel() {
+    clearTimeout(overlay.hideTimer);
+    overlay.hideTimer = setTimeout(hidePanel, 700);
   }
 
   function buildPanel(entry, r) {
@@ -239,6 +300,8 @@
     });
     mo.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('popstate', scheduleScan);
+    window.addEventListener('scroll', hidePanel, { passive: true });
+    window.addEventListener('resize', positionPanel);
     console.info('[thomann-companion] enabled with adapter', adapter.name);
   }
 
@@ -248,6 +311,10 @@
     if (mo) mo.disconnect(); mo = null;
     if (io) io.disconnect(); io = null;
     window.removeEventListener('popstate', scheduleScan);
+    window.removeEventListener('scroll', hidePanel);
+    window.removeEventListener('resize', positionPanel);
+    hidePanel();
+    if (overlay.host) overlay.host.remove(); overlay.host = null; overlay.shadow = null;
     for (const b of badges.values()) b.host.remove();
     badges.clear();
     console.info('[thomann-companion] disabled');

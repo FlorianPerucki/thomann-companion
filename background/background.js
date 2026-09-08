@@ -90,7 +90,16 @@ async function lookup(msg) {
   });
   if (res.error || !res.candidates) return { status: 'error', query, searchUrl, error: res.error || 'no data', ranked: [] };
 
-  let candidates = res.candidates;
+  let candidates = res.candidates.slice();
+  // Thomann's search excludes "A-140" when asked for "a-140-1": retry with the base code and merge.
+  if (!ThomannMatcher.hasCodeMatch(query, candidates)) {
+    for (const fq of ThomannMatcher.fallbackQueries(query)) {
+      const extraRes = await client.search(domain, fq, { ttlMs: settings.ttlHours * 3600 * 1000, allowCookies: settings.allowCookies, force: !!msg.force, priority: msg.priority || 0 });
+      if (!extraRes.candidates) continue;
+      const seen = new Set(candidates.map((c) => c.id));
+      for (const c of extraRes.candidates) if (!seen.has(c.id)) { candidates.push(c); seen.add(c.id); }
+    }
+  }
   if (settings.hideBstock) candidates = candidates.filter((c) => !c.bstock);
 
   const overrides = await getOverrides();

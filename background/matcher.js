@@ -29,11 +29,36 @@
   const QUALIFIERS = [
     'vintage', 'edition', 'se', 'b-stock', 'bstock', 'set', 'bundle', 'case', 'bag', 'stand',
     'cover', 'cable', 'kabel', 'câble', 'psu', 'netzteil', 'power', 'supply', 'kit', 'pack',
-    'bracket', 'adapter', 'adaptor', 'mk2', 'mkii', 'mk3', 'mkiii', 'v2', 'v3', 'ii', 'iii',
+    'bracket', 'adapter', 'adaptor', 've', 'mk2', 'mkii', 'mk3', 'mkiii', 'v2', 'v3', 'ii', 'iii',
     'black', 'white', 'silver', 'red', 'blue'
   ];
 
   const MODEL_CODE = /^[a-z]{1,4}-\d{2,5}(?:-\d{1,3})?[a-z]?$/;
+
+  /** "a-140-1" -> "a-140" (the "-1" suffix denotes the base model); anything else unchanged. */
+  function baseCode(code) {
+    return code.replace(/-1$/, '');
+  }
+
+  /** Alternative queries worth trying when the exact model code returns nothing: the base code. */
+  function fallbackQueries(query) {
+    const tokens = tokenize(normalizeModelCodes(query));
+    const out = [];
+    for (const t of tokens) {
+      if (MODEL_CODE.test(t) && baseCode(t) !== t) out.push(tokens.map((x) => (x === t ? baseCode(t) : x)).join(' '));
+    }
+    return out;
+  }
+
+  /** True when some candidate carries one of the query's model codes exactly (or its base form). */
+  function hasCodeMatch(query, candidates) {
+    const codes = tokenize(normalizeModelCodes(query)).filter((t) => MODEL_CODE.test(t));
+    if (!codes.length) return true;
+    return (candidates || []).some((c) => {
+      const ct = candidateTokens(c);
+      return codes.some((qc) => ct.has(qc) || ct.has(baseCode(qc)));
+    });
+  }
 
   // "A 110", "a110", "A-110-1", "a 110 1" -> "a-110", "a-110-1".
   function normalizeModelCodes(str) {
@@ -105,8 +130,12 @@
     if (qCodes.length) {
       const exact = qCodes.some((t) => ct.has(t));
       if (exact) score += 0.45;
-      else {
-        // Prefix match ("a-110" vs "a-110-1") is worth something, a different code is not.
+      else if (qCodes.some((qc) => cCodes.some((cc) => baseCode(qc) === cc || baseCode(cc) === qc))) {
+        // "a-140-1" and "a-140" name the same module (Doepfer convention); the query token
+        // itself didn't overlap, so compensate for the lost coverage too.
+        score += 0.45;
+      } else {
+        // Other prefix relation ("a-110" vs "a-110-2") is worth something, a different code is not.
         const prefix = qCodes.some((qc) => cCodes.some((cc) => cc.startsWith(qc + '-') || qc.startsWith(cc + '-')));
         score += prefix ? 0.15 : -0.4;
       }
@@ -143,7 +172,7 @@
     return { status: 'none', best: null, ranked };
   }
 
-  const api = { DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest };
+  const api = { DEFAULT_STOP_WORDS, QUALIFIERS, normalizeModelCodes, tokenize, cleanQuery, scoreCandidate, pickBest, baseCode, fallbackQueries, hasCodeMatch };
   root.ThomannMatcher = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
