@@ -3,6 +3,7 @@
 
 const DEFAULT_SETTINGS = {
   domain: 'www.thomannmusic.ch',
+  chLocale: 'fr-ch',        // thomannmusic.ch only: '' (site default), 'fr-ch', 'en' or 'en-ch' -> links/searches go to thomannmusic.com/<locale>
   ttlHours: 24,
   hideBstock: false,
   concurrency: 2,
@@ -62,6 +63,11 @@ async function getSettings() {
   const stored = await browser.storage.sync.get('settings');
   const s = Object.assign({}, DEFAULT_SETTINGS, stored.settings || {});
   s.sources = Object.assign({}, DEFAULT_SETTINGS.sources, (stored.settings && stored.settings.sources) || {});
+  // thomannmusic.ch has no language switch of its own; the same shop is served, in French or
+  // English and still in CHF, under thomannmusic.com/<locale>/ — so the whole shop (search
+  // endpoint and product links) is redirected there when a locale is chosen.
+  s.shopDomain = s.domain;
+  if (String(s.domain).split('/')[0] === 'www.thomannmusic.ch' && s.chLocale) s.domain = 'www.thomannmusic.com/' + s.chLocale;
   return s;
 }
 

@@ -18,7 +18,7 @@ Or, with Node installed: `npm install && npm start` (runs Firefox with the exten
 
 ## Options
 
-`about:addons` → Thomann Price Companion → Preferences. Shop domain (thomannmusic.ch, thomannmusic.com/fr-ch, thomann.fr, thomann.de or custom — a host optionally followed by a locale path), cache lifetime, B-stock handling, skip words (titles containing them are never looked up; default `recherche`), extra stop words, match threshold, request pacing, cookie policy (off by default — requests are anonymous), clear cache / clear manual matches.
+`about:addons` → Thomann Price Companion → Preferences. Shop domain (thomannmusic.ch, thomannmusic.com/fr-ch, thomann.fr, thomann.de or custom — a host optionally followed by a locale path), language for thomannmusic.ch (Français `fr-ch` by default, English `en-ch`, or the site default: links and searches then use `thomannmusic.com/<locale>/`, same shop and CHF prices), cache lifetime, B-stock handling, skip words (titles containing them are never looked up; default `recherche`), extra stop words, match threshold, request pacing, cookie policy (off by default — requests are anonymous), clear cache / clear manual matches.
 
 ## Badge states
 

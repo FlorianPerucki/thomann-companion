@@ -19,6 +19,15 @@ function currentDomain() {
   return custom || $('domain').value;
 }
 
+// The locale choice only applies to thomannmusic.ch; with a locale the effective shop is thomannmusic.com/<locale>.
+function effectiveDomain() {
+  const d = currentDomain();
+  return d.split('/')[0] === 'www.thomannmusic.ch' && $('chLocale').value ? 'www.thomannmusic.com/' + $('chLocale').value : d;
+}
+function refreshLocaleRow() {
+  $('chLocaleRow').hidden = currentDomain().split('/')[0] !== 'www.thomannmusic.ch';
+}
+
 function fill(s) {
   $('domain').innerHTML = '';
   for (const d of knownDomains) {
@@ -26,8 +35,11 @@ function fill(s) {
     o.value = d; o.textContent = d;
     $('domain').appendChild(o);
   }
-  if (knownDomains.includes(s.domain)) { $('domain').value = s.domain; $('customDomain').value = ''; }
-  else { $('customDomain').value = s.domain; }
+  const shop = s.shopDomain || s.domain;
+  if (knownDomains.includes(shop)) { $('domain').value = shop; $('customDomain').value = ''; }
+  else { $('customDomain').value = shop; }
+  $('chLocale').value = s.chLocale == null ? 'fr-ch' : s.chLocale;
+  refreshLocaleRow();
   for (const f of FIELDS) {
     const el = $(f);
     if (el.type === 'checkbox') el.checked = !!s[f]; else el.value = s[f];
@@ -38,7 +50,7 @@ function fill(s) {
 }
 
 function read() {
-  const s = { domain: currentDomain() };
+  const s = { domain: currentDomain(), chLocale: $('chLocale').value };
   for (const f of FIELDS) {
     const el = $(f);
     if (el.type === 'checkbox') s[f] = el.checked;
@@ -70,7 +82,7 @@ async function refreshMarketPermissions() {
 }
 
 async function refreshPermission() {
-  const domain = currentDomain();
+  const domain = effectiveDomain();
   const { ok } = await browser.runtime.sendMessage({ type: 'hasPermission', domain });
   $('perm').textContent = ok ? '✓ access granted for ' + domain : '⚠ no access to ' + domain + ' yet';
   $('perm').className = ok ? 'ok' : 'warn';
@@ -101,7 +113,7 @@ $('save').addEventListener('click', async () => {
 $('reset').addEventListener('click', () => { fill(defaults); status('Defaults restored (not saved yet).'); });
 
 $('grant').addEventListener('click', async () => {
-  const domain = currentDomain();
+  const domain = effectiveDomain();
   try {
     const ok = await browser.permissions.request({ origins: ['https://' + domain.split('/')[0] + '/*'] });
     status(ok ? 'Access granted.' : 'Access denied.', ok ? 'ok' : 'warn');
@@ -133,7 +145,8 @@ $('clearHidden').addEventListener('click', async () => { await browser.runtime.s
 
 $('clearCache').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearCache' }); status('Cache cleared.', 'ok'); refreshStats(); });
 $('clearOverrides').addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'clearOverrides' }); status('Manual matches cleared.', 'ok'); refreshStats(); });
-$('domain').addEventListener('change', refreshPermission);
-$('customDomain').addEventListener('input', refreshPermission);
+$('domain').addEventListener('change', () => { refreshLocaleRow(); refreshPermission(); });
+$('customDomain').addEventListener('input', () => { refreshLocaleRow(); refreshPermission(); });
+$('chLocale').addEventListener('change', refreshPermission);
 
 load();
