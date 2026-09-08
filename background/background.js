@@ -19,7 +19,8 @@ const DEFAULT_SETTINGS = {
   reverseMatchMin: 0.5,
   lbcCategory: '30',      // leboncoin "Instruments de musique"; empty = all categories
   marketLang: 'fr',       // ricardo / anibis language path
-  allowMarketCookies: false
+  allowMarketCookies: false,
+  marketCookieFallback: true // retry once with cookies when a marketplace answers 403 to an anonymous request
 };
 
 const KNOWN_DOMAINS = ['www.thomannmusic.ch', 'www.thomannmusic.com/fr-ch', 'www.thomannmusic.com/de-ch', 'www.thomann.fr', 'www.thomann.de'];

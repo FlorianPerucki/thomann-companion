@@ -118,3 +118,14 @@ test('marketQueries: brand + code, then base code, then brand (anibis: base code
   assert.deepEqual(M.marketQueries('Doepfer A-140-1', { baseOnly: true }), ['doepfer a-140', 'doepfer']);
   assert.deepEqual(M.marketQueries('Make Noise Maths'), ['make noise maths', 'make']);
 });
+
+test('fetchListings retries once with cookies on 403 (DataDome), unless disabled', async () => {
+  const calls = [];
+  const fetch403ThenOk = async (u, i) => { calls.push(i.credentials); return calls.length === 1 ? { ok: false, status: 403, text: async () => '' } : { ok: true, status: 200, text: async () => LBC }; };
+  const l = await fetchListings(PROVIDERS.leboncoin, 'x', { marketCookieFallback: true }, fetch403ThenOk);
+  assert.deepEqual(calls, ['omit', 'include']);
+  assert.equal(l.length, 3);
+  const calls2 = [];
+  await assert.rejects(fetchListings(PROVIDERS.leboncoin, 'x', { marketCookieFallback: false }, async (u, i) => { calls2.push(i.credentials); return { ok: false, status: 403, text: async () => '' }; }), /403/);
+  assert.deepEqual(calls2, ['omit']);
+});

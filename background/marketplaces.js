@@ -134,19 +134,28 @@
    */
   async function fetchListings(provider, query, cfg, fetchFn) {
     const url = provider.searchUrl(query, cfg);
-    const res = await fetchFn(url, {
-      credentials: cfg && cfg.allowMarketCookies ? 'include' : 'omit',
+    const init = (credentials) => ({
+      credentials,
       redirect: 'follow',
-      headers: { 'Accept': 'text/html,application/xhtml+xml' }
+      headers: { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': ((cfg && cfg.marketLang) || 'fr') + ',en;q=0.7' }
     });
+    let res = await fetchFn(url, init(cfg && cfg.allowMarketCookies ? 'include' : 'omit'));
+    // Anti-bot systems (DataDome on leboncoin) sometimes reject anonymous requests but accept
+    // the browser's own cookies, which carry the clearance obtained while browsing the site.
+    if ((res.status === 403 || res.status === 401) && !(cfg && cfg.allowMarketCookies) && (cfg == null || cfg.marketCookieFallback !== false)) {
+      res = await fetchFn(url, init('include'));
+      res.usedCookies = true;
+    }
     if (res.status === 429 || res.status >= 500) { const e = new Error('HTTP ' + res.status); e.retryable = true; throw e; }
+    if (res.status === 403) throw new Error('HTTP 403 — blocked by the site\'s anti-bot protection; open ' + provider.origin + ' in a tab once, then refresh');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     const listings = provider.parse(text, cfg);
     if (!listings) {
-      if (/datadome|captcha-delivery|cf-chl|turnstile/i.test(text)) throw new Error('blocked by anti-bot challenge');
+      if (/datadome|captcha-delivery|cf-chl|turnstile/i.test(text)) throw new Error('blocked by anti-bot challenge; open ' + provider.origin + ' in a tab once, then refresh');
       throw new Error('unrecognized response');
     }
+    if (res.usedCookies) listings.usedCookies = true;
     return listings;
   }
 

@@ -2,7 +2,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies', 'reverseMatchMin', 'reverseTtlHours', 'lbcCategory', 'marketLang', 'allowMarketCookies'];
+const FIELDS = ['hideBstock', 'skipWords', 'extraStopWords', 'matchMin', 'eurChfRate', 'ttlHours', 'concurrency', 'spacingMs', 'allowCookies', 'reverseMatchMin', 'reverseTtlHours', 'lbcCategory', 'marketLang', 'allowMarketCookies', 'marketCookieFallback'];
 const SOURCES = ['leboncoin', 'ricardo', 'anibis'];
 const SOURCE_ORIGIN = { leboncoin: 'https://www.leboncoin.fr/*', ricardo: 'https://www.ricardo.ch/*', anibis: 'https://www.anibis.ch/*' };
 let defaults = {};

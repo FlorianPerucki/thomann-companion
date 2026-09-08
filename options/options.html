@@ -51,8 +51,10 @@
     <input type="text" id="lbcCategory" placeholder="30"></label>
   <label><span>ricardo / anibis language<small>fr, de, it or en (URL path).</small></span>
     <input type="text" id="marketLang" placeholder="fr"></label>
-  <label><span>Send cookies to marketplaces<small>Off by default. Turn on only if lookups get blocked.</small></span>
+  <label><span>Send cookies to marketplaces<small>Off by default: requests are anonymous.</small></span>
     <input type="checkbox" id="allowMarketCookies"></label>
+  <label><span>Retry with cookies when blocked<small>If a marketplace answers 403 to an anonymous request (leboncoin's DataDome does), retry once with your browser's cookies for that site.</small></span>
+    <input type="checkbox" id="marketCookieFallback"></label>
   <div class="row"><button id="clearHidden">Clear hidden listings</button></div>
 
   <h2>Requests &amp; cache</h2>
