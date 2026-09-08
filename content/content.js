@@ -332,7 +332,7 @@
       const row = el('div', 'row');
       const n = el('a', 'n', c.name + (c.bstock ? ' (B-stock)' : '') + (c.alternative ? ' ~' : ''));
       n.href = c.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
-      n.title = c.name + (c.alternative ? ' — from "similar searches"' : '');
+      if (!c.image) n.title = c.name + (c.alternative ? ' — from "similar searches"' : ''); // native tooltip only when no photo preview
       row.append(n, el('span', 'p', fmtPrice(c.price, c.currency)), el('span', 's', c.score != null ? c.score.toFixed(2) : ''));
       attachPreview(row, c.image, c.name);
       if (!r.best || c.id !== r.best.id) {
@@ -359,7 +359,7 @@
       const row = el('div', 'row');
       const n = el('a', 'n', l.title);
       n.href = l.url; n.target = '_blank'; n.rel = 'noopener noreferrer';
-      n.title = l.title + (l.body ? '\n' + l.body.slice(0, 300) : '');
+      if (!l.image) n.title = l.title + (l.body ? '\n' + l.body.slice(0, 300) : ''); // native tooltip only when no photo preview
       const meta = [l.place, fmtAge(l.date)].filter(Boolean).join(' · ');
       row.append(n, el('span', 'p', fmtPrice(l.price, l.currency)), el('span', 's', meta));
       attachPreview(row, l.image, l.title);
