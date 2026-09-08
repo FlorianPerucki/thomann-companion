@@ -93,3 +93,9 @@ test('findSkipWord matches whole words, case and accent insensitive', () => {
   assert.equal(M.findSkipWord('Doepfer A-110 recherché', ['cherche']), null); // not a whole word
   assert.equal(M.findSkipWord('Doepfer A-110', ['recherche']), null);
 });
+
+test('"b-stock" is dropped from searches and from the strict reverse rule', () => {
+  assert.equal(M.cleanQuery('Doepfer A-110-4 Thru Zero Quad B-Stock'), 'doepfer thru zero quad a-110-4');
+  const m = M.pickMatches('doepfer a-131', [{ id: '1', title: 'Doepfer A-131', price: 40 }], { productName: 'Doepfer A-131 B-Stock' });
+  assert.deepEqual(m.map((l) => l.id), ['1']);
+});

@@ -21,7 +21,9 @@
     // Domain noise
     'eurorack', 'euro', 'rack', 'module', 'modul', 'modules', 'modular', 'modulaire', 'synth',
     'synthé', 'synthe', 'synthesizer', 'synthétiseur', 'synthetiseur', 'analog', 'analogue',
-    'analogique', 'hp', 'te', 'u', 'x', '+', '-', '&'
+    'analogique', 'hp', 'te', 'u', 'x', '+', '-', '&',
+    // Condition (Thomann's B-stock articles keep the product name)
+    'b-stock', 'bstock'
   ];
 
   // Qualifiers that make a Thomann candidate a *different* product unless the
@@ -232,7 +234,7 @@
     // name with 3+ characters must appear in the listing title. Model codes also accept their
     // base form (A-140 ~ A-140-1).
     const productName = opts.productName || query;
-    const required = [...words(productName)].filter((t) => t.length >= minLen);
+    const required = [...words(productName)].filter((t) => t.length >= minLen && !CONDITION_TOKENS.has(t));
     const out = [];
     for (const l of listings || []) {
       if (l.wanted) continue;
