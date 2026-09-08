@@ -4,10 +4,10 @@
 const DEFAULT_SETTINGS = {
   domain: 'www.thomannmusic.ch',
   ttlHours: 24,
-  hideBstock: true,
+  hideBstock: false,
   concurrency: 2,
   spacingMs: 300,
-  extraStopWords: '',
+  extraStopWords: 'recherche',
   eurChfRate: 0,        // 0 = no conversion / no "cheaper" hint across currencies
   allowCookies: false,
   matchMin: 0.6,
